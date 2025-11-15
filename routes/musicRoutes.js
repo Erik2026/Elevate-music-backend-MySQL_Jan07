@@ -12,6 +12,7 @@ import { protect } from '../middleware/authMiddleware.js';
 import { requireSubscription } from '../middleware/subscriptionMiddleware.js';
 import { adminOnly } from '../middleware/adminMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
+import { adminOperationLimiter, userOperationLimiter } from '../middleware/rateLimiterMiddleware.js';
 
 const router = express.Router();
 
@@ -20,10 +21,11 @@ router.get('/admin', protect, adminOnly, getMusic);
 router.get('/admin/category/:categoryId', protect, adminOnly, getMusicByCategory);
 
 // Public/User routes (requires authentication and active subscription)
-router.get('/', protect, requireSubscription, getMusic);
-router.get('/category/:categoryId', protect, requireSubscription, getMusicByCategory);
+router.get('/', userOperationLimiter, protect, requireSubscription, getMusic);
+router.get('/category/:categoryId', userOperationLimiter, protect, requireSubscription, getMusicByCategory);
 router.post(
   '/upload',
+  adminOperationLimiter, // More lenient rate limit for admin operations
   protect,
   adminOnly,
   (req, res, next) => {
@@ -38,10 +40,11 @@ router.post(
 ); // Bulk file upload
 
 // Update database URLs from local to production
-router.post('/update-urls', protect, adminOnly, updateDatabaseUrls);
+router.post('/update-urls', adminOperationLimiter, protect, adminOnly, updateDatabaseUrls);
 
 router.post(
   '/create',
+  adminOperationLimiter, // More lenient rate limit for admin operations
   protect,
   adminOnly,
   (req, res, next) => {
@@ -56,8 +59,9 @@ router.post(
 );
 router
   .route('/:id')
-  .delete(protect, adminOnly, deleteMusic)
+  .delete(adminOperationLimiter, protect, adminOnly, deleteMusic)
   .put(
+    adminOperationLimiter, // More lenient rate limit for admin operations
     protect,
     adminOnly,
     (req, res, next) => {

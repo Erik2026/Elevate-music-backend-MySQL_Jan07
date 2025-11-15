@@ -63,7 +63,7 @@ import { handleWebhook } from './controllers/subscriptionController.js';
 import userRoutes from './routes/userRoutes.js';
 import termsRoutes from './routes/termsRoutes.js';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import { fileOperationLimiter } from './middleware/rateLimiterMiddleware.js';
 
 const port = process.env.PORT || 5000;
 
@@ -95,12 +95,7 @@ app.use(
 // 3. Rate limiting to prevent automated CSRF attacks
 // 4. JWT tokens stored in httpOnly cookies prevent XSS-based token theft
 
-// Security: Rate limiting for expensive operations
-const fileOperationLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // limit each IP to 50 requests per windowMs
-  message: 'Too many file operation requests from this IP, please try again later.'
-});
+// Security: Rate limiting is configured in middleware/rateLimiterMiddleware.js
 
 // Stripe webhook must be registered BEFORE express.json() to preserve raw body
 app.post('/api/subscriptions/webhook', express.raw({ type: 'application/json' }), handleWebhook);
@@ -197,7 +192,8 @@ app.use(cookieParser());
 // Mount routes with rate limiting for file operations
 app.use('/api/users', userRoutes);
 app.use('/api/categories', categoryRoutes);
-app.use('/api/music', fileOperationLimiter, musicRoutes);
+// Music routes - rate limiting applied per route in musicRoutes.js
+app.use('/api/music', musicRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/subscription-plans', subscriptionPlanRoutes);
 app.use('/api/payments', paymentRoutes);
