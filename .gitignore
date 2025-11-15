@@ -94,3 +94,8 @@ temp/
 # Uploaded files
 uploads/*
 !uploads/.gitkeep
+
+# Docker
+.docker/
+docker-compose.override.yml
+*.dockerignore.bak
