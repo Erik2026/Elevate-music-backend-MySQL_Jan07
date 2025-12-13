@@ -1,17 +1,33 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
 
-const fileSchema = new mongoose.Schema(
+const File = sequelize.define(
+  'File',
   {
-    title: { type: String, required: true },
-    path: { type: String, required: true },
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    path: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     fileType: {
-      type: String,
-      enum: ['Song', 'Wave'], // Only allow these two values
-      required: true,
+      type: DataTypes.ENUM('Song', 'Wave'),
+      allowNull: false,
     },
   },
-  { timestamps: true },
+  {
+    sequelize,
+    modelName: 'File',
+    tableName: 'files',
+    timestamps: true,
+  },
 );
 
-const File = mongoose.model('File', fileSchema);
 export default File;

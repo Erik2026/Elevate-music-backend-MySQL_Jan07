@@ -1,32 +1,36 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
 
-const categoryTypeSchema = mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  description: {
-    type: String,
-  },
-});
-
-const categorySchema = mongoose.Schema(
+const Category = sequelize.define(
+  'Category',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     name: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
     },
     description: {
-      type: String,
+      type: DataTypes.TEXT,
     },
-    types: [categoryTypeSchema], // Array of category types (subcategories)
+    // Store category types as JSON array
+    types: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+      // Example: [{ id: uuid, name: 'Classical', description: '...' }]
+    },
   },
   {
+    sequelize,
+    modelName: 'Category',
+    tableName: 'categories',
     timestamps: true,
+    indexes: [{ fields: ['name'] }],
   },
 );
-
-const Category = mongoose.model('Category', categorySchema);
 
 export default Category;

@@ -1,182 +1,188 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
+import User from './userModel.js';
 
-const subscriptionPlanSchema = new mongoose.Schema(
+const SubscriptionPlan = sequelize.define(
+  'SubscriptionPlan',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     // Basic Plan Information
     title: {
-      type: String,
-      required: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
-
     // Pricing Information
     monthlyCost: {
-      type: Number,
-      required: true,
-      min: 0,
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      validate: { min: 0 },
     },
     annualCost: {
-      type: Number,
-      required: true,
-      min: 0,
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      validate: { min: 0 },
     },
-
     // Plan Features
     adSupported: {
-      type: String,
-      required: true,
-      enum: ['Yes', 'No'],
+      type: DataTypes.ENUM('Yes', 'No'),
+      allowNull: false,
     },
     audioFileType: {
-      type: String,
-      required: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     offlineDownloads: {
-      type: String,
-      required: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     binauralTracks: {
-      type: String,
-      required: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     soundscapeTracks: {
-      type: String,
-      required: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     dynamicAudioFeatures: {
-      type: String,
-      required: true,
-      enum: ['Yes', 'No'],
+      type: DataTypes.ENUM('Yes', 'No'),
+      allowNull: false,
     },
     customTrackRequests: {
-      type: String,
-      required: true,
-      enum: ['Yes', 'No'],
+      type: DataTypes.ENUM('Yes', 'No'),
+      allowNull: false,
     },
-
     // Stripe Integration
     stripePriceId: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
-      trim: true,
     },
     stripeMonthlyPriceId: {
-      type: String,
-      trim: true,
+      type: DataTypes.STRING,
     },
     stripeYearlyPriceId: {
-      type: String,
-      trim: true,
+      type: DataTypes.STRING,
     },
     stripeProductId: {
-      type: String,
-      trim: true,
+      type: DataTypes.STRING,
     },
-
     // Plan Management
     isActive: {
-      type: Boolean,
-      default: true,
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
     },
     isDefault: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
-
     // Version Control for Pricing Changes
     version: {
-      type: Number,
-      default: 1,
+      type: DataTypes.INTEGER,
+      defaultValue: 1,
     },
     effectiveDate: {
-      type: Date,
-      default: Date.now,
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     endDate: {
-      type: Date,
-      default: null, // null means currently active
+      type: DataTypes.DATE,
+      defaultValue: null,
     },
-
     // Metadata
     description: {
-      type: String,
-      trim: true,
+      type: DataTypes.TEXT,
     },
-    features: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-
+    features: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+    },
     // Admin Tracking
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+    createdById: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: User,
+        key: 'id',
+      },
     },
-    lastModifiedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+    lastModifiedById: {
+      type: DataTypes.UUID,
+      references: {
+        model: User,
+        key: 'id',
+      },
     },
   },
   {
-    timestamps: true, // Adds createdAt and updatedAt
+    sequelize,
+    modelName: 'SubscriptionPlan',
+    tableName: 'subscription_plans',
+    timestamps: true,
+    indexes: [
+      { fields: ['isActive', 'effectiveDate'] },
+      { fields: ['stripePriceId'] },
+      { fields: ['title'] },
+    ],
   },
 );
 
-// Indexes for better query performance
-subscriptionPlanSchema.index({ isActive: 1, effectiveDate: 1 });
-subscriptionPlanSchema.index({ stripePriceId: 1 });
-subscriptionPlanSchema.index({ title: 1 });
+// Associations
+SubscriptionPlan.belongsTo(User, { foreignKey: 'createdById', as: 'createdBy' });
+SubscriptionPlan.belongsTo(User, { foreignKey: 'lastModifiedById', as: 'lastModifiedBy' });
 
-// Virtual for formatted pricing display
-subscriptionPlanSchema.virtual('monthlyCostFormatted').get(function () {
-  return `$${this.monthlyCost.toFixed(2)}`;
-});
+// Instance methods
+SubscriptionPlan.prototype.monthlyCostFormatted = function () {
+  return `$${parseFloat(this.monthlyCost).toFixed(2)}`;
+};
 
-subscriptionPlanSchema.virtual('annualCostFormatted').get(function () {
-  return `$${this.annualCost.toFixed(2)}`;
-});
+SubscriptionPlan.prototype.annualCostFormatted = function () {
+  return `$${parseFloat(this.annualCost).toFixed(2)}`;
+};
 
-// Method to get current active plan
-subscriptionPlanSchema.statics.getCurrentActivePlan = function () {
+// Static methods
+SubscriptionPlan.getCurrentActivePlan = function () {
   return this.findOne({
-    isActive: true,
-    $or: [{ endDate: null }, { endDate: { $gt: new Date() } }],
-  }).sort({ effectiveDate: -1 });
+    where: {
+      isActive: true,
+      [sequelize.Sequelize.Op.or]: [
+        { endDate: null },
+        { endDate: { [sequelize.Sequelize.Op.gt]: new Date() } },
+      ],
+    },
+    order: [['effectiveDate', 'DESC']],
+  });
 };
 
-// Method to get all active plans (for admin display)
-subscriptionPlanSchema.statics.getActivePlans = function () {
-  return this.find({
-    isActive: true,
-    $or: [{ endDate: null }, { endDate: { $gt: new Date() } }],
-  }).sort({ effectiveDate: -1 });
+SubscriptionPlan.getActivePlans = function () {
+  return this.findAll({
+    where: {
+      isActive: true,
+      [sequelize.Sequelize.Op.or]: [
+        { endDate: null },
+        { endDate: { [sequelize.Sequelize.Op.gt]: new Date() } },
+      ],
+    },
+    order: [['effectiveDate', 'DESC']],
+  });
 };
 
-// Method to deactivate plan (soft delete for history preservation)
-subscriptionPlanSchema.methods.deactivate = function (adminUserId) {
+// Instance method to deactivate plan
+SubscriptionPlan.prototype.deactivate = async function (adminUserId) {
   this.isActive = false;
   this.endDate = new Date();
-  this.lastModifiedBy = adminUserId;
+  this.lastModifiedById = adminUserId;
   return this.save();
 };
 
-// Ensure only one default plan exists
-subscriptionPlanSchema.pre('save', async function (next) {
-  if (this.isDefault && this.isNew) {
-    // Remove default flag from other plans
-    await this.constructor.updateMany({ _id: { $ne: this._id } }, { isDefault: false });
+// Hook to ensure only one default plan
+SubscriptionPlan.beforeSave(async (plan, options) => {
+  if (plan.isDefault && plan.isNewRecord) {
+    await SubscriptionPlan.update({ isDefault: false }, { where: { id: { [sequelize.Sequelize.Op.ne]: plan.id } } });
   }
-  next();
 });
-
-const SubscriptionPlan = mongoose.model('SubscriptionPlan', subscriptionPlanSchema);
 
 export default SubscriptionPlan;

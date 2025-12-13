@@ -1,43 +1,63 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
+import User from './userModel.js';
 
-const notificationLogSchema = mongoose.Schema(
+const NotificationLog = sequelize.define(
+  'NotificationLog',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: User,
+        key: 'id',
+      },
     },
     type: {
-      type: String,
-      enum: ['email', 'push', 'in-app'],
-      required: true,
+      type: DataTypes.ENUM('email', 'push', 'in-app'),
+      allowNull: false,
     },
     template: {
-      type: String,
-      enum: ['7day_reminder', '3day_reminder', '1day_reminder', 'expired_reminder', 'grace_period'],
-      required: true,
+      type: DataTypes.ENUM('7day_reminder', '3day_reminder', '1day_reminder', 'expired_reminder', 'grace_period'),
+      allowNull: false,
     },
     status: {
-      type: String,
-      enum: ['sent', 'failed', 'pending'],
-      default: 'pending',
+      type: DataTypes.ENUM('sent', 'failed', 'pending'),
+      defaultValue: 'pending',
     },
     sentAt: {
-      type: Date,
-      default: Date.now,
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     metadata: {
-      emailAddress: String,
-      pushToken: String,
-      errorMessage: String,
-      deliveryId: String,
+      type: DataTypes.JSON,
+      defaultValue: {
+        emailAddress: null,
+        pushToken: null,
+        errorMessage: null,
+        deliveryId: null,
+      },
     },
   },
   {
+    sequelize,
+    modelName: 'NotificationLog',
+    tableName: 'notification_logs',
     timestamps: true,
+    indexes: [
+      { fields: ['userId'] },
+      { fields: ['type'] },
+      { fields: ['status'] },
+    ],
   },
 );
 
-const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
+// Association
+NotificationLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 export default NotificationLog;

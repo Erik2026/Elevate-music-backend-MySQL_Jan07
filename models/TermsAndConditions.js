@@ -1,53 +1,68 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
+import User from './userModel.js';
 
-const termsAndConditionsSchema = mongoose.Schema(
+const TermsAndConditions = sequelize.define(
+  'TermsAndConditions',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     documentType: {
-      type: String,
-      required: true,
-      enum: ['terms', 'disclaimer'],
-      default: 'terms',
+      type: DataTypes.ENUM('terms', 'disclaimer'),
+      allowNull: false,
+      defaultValue: 'terms',
     },
     title: {
-      type: String,
-      required: true,
-      default: 'Terms and Conditions',
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'Terms and Conditions',
     },
     content: {
-      type: String,
-      required: true,
+      type: DataTypes.LONGTEXT,
+      allowNull: false,
     },
     version: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     isActive: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
     publishedAt: {
-      type: Date,
-      default: null,
+      type: DataTypes.DATE,
+      defaultValue: null,
     },
-    publishedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+    publishedById: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: User,
+        key: 'id',
+      },
     },
     effectiveDate: {
-      type: Date,
-      required: true,
-      default: Date.now,
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
     },
   },
   {
+    sequelize,
+    modelName: 'TermsAndConditions',
+    tableName: 'terms_and_conditions',
     timestamps: true,
+    indexes: [
+      { fields: ['isActive'] },
+      { fields: ['documentType'] },
+    ],
   },
 );
 
-// Ensure only one active version at a time
-termsAndConditionsSchema.index({ isActive: 1 });
-
-const TermsAndConditions = mongoose.model('TermsAndConditions', termsAndConditionsSchema);
+// Association
+TermsAndConditions.belongsTo(User, { foreignKey: 'publishedById', as: 'publishedBy' });
 
 export default TermsAndConditions;

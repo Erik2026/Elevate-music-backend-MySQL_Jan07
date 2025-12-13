@@ -1,53 +1,83 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
+import User from './userModel.js';
+import Category from './Category.js';
 
-const musicSchema = mongoose.Schema(
+const Music = sequelize.define(
+  'Music',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     title: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     artist: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
-      required: true,
+    categoryId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: Category,
+        key: 'id',
+      },
     },
     categoryType: {
-      type: mongoose.Schema.Types.ObjectId, // Reference to a specific type's _id within the category
-      required: false, // Optional, as not all categories might have types
+      type: DataTypes.STRING,
+      allowNull: true,
+      // Store category type reference (from JSON array in Category model)
     },
     fileUrl: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     thumbnailUrl: {
-      type: String,
-      default: '',
+      type: DataTypes.STRING,
+      defaultValue: '',
     },
     duration: {
-      type: Number,
-      required: true,
-      min: 1,
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: {
+        min: 1,
+      },
     },
     releaseDate: {
-      type: Date,
+      type: DataTypes.DATE,
     },
     description: {
-      type: String,
-      trim: true,
-      maxlength: 1000,
-      default: '',
+      type: DataTypes.TEXT,
+      defaultValue: '',
     },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: User,
+        key: 'id',
+      },
+    },
   },
   {
+    sequelize,
+    modelName: 'Music',
+    tableName: 'music',
     timestamps: true,
+    indexes: [
+      { fields: ['categoryId'] },
+      { fields: ['userId'] },
+      { fields: ['title'] },
+    ],
   },
 );
 
-const Music = mongoose.model('Music', musicSchema);
+// Define associations
+Music.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' });
+Music.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 export default Music;

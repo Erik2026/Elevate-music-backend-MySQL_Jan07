@@ -1,150 +1,122 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
-const userSchema = mongoose.Schema(
+const User = sequelize.define(
+  'User',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     name: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     email: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
-      lowercase: true, // Ensures email uniqueness check is case-insensitive
+      lowercase: true,
+      validate: {
+        isEmail: true,
+      },
     },
     password: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     role: {
-      type: String,
-      enum: ['user', 'admin', 'moderator'], // Define allowed roles
-      default: 'user', // Default role is 'user'
+      type: DataTypes.ENUM('user', 'admin', 'moderator'),
+      defaultValue: 'user',
     },
     stripeCustomerId: {
-      type: String,
-      default: null,
+      type: DataTypes.STRING,
+      defaultValue: null,
     },
     autoDebit: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
+    // Subscription as JSON
     subscription: {
-      id: {
-        type: String,
-        default: null,
-      },
-      status: {
-        type: String,
-        default: null,
-      },
-      currentPeriodEnd: {
-        type: Date,
-        default: null,
-      },
-      cancelAtPeriodEnd: {
-        type: Boolean,
-        default: false,
-      },
-      paymentDate: {
-        type: Date,
-        default: null,
-      },
-      validityDays: {
-        type: Number,
-        default: 30,
-      },
-      interval: {
-        type: String,
-        enum: ['month', 'year'],
-        default: 'month',
+      type: DataTypes.JSON,
+      defaultValue: {
+        id: null,
+        status: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        paymentDate: null,
+        validityDays: 30,
+        interval: 'month',
       },
     },
+    // Notification preferences as JSON
     notificationPreferences: {
-      emailReminders: {
-        type: Boolean,
-        default: true,
-      },
-      pushNotifications: {
-        type: Boolean,
-        default: true,
-      },
-      reminderFrequency: [
-        {
-          type: String,
-          enum: ['7days', '3days', '1day', 'expired'],
-          default: ['7days', '3days', '1day'],
-        },
-      ],
-      preferredTime: {
-        type: String,
-        default: '09:00',
-      },
-      timezone: {
-        type: String,
-        default: 'UTC',
-      },
-      lastReminderSent: {
-        type: Date,
-        default: null,
-      },
-      fcmToken: {
-        type: String,
-        default: null,
+      type: DataTypes.JSON,
+      defaultValue: {
+        emailReminders: true,
+        pushNotifications: true,
+        reminderFrequency: ['7days', '3days', '1day'],
+        preferredTime: '09:00',
+        timezone: 'UTC',
+        lastReminderSent: null,
+        fcmToken: null,
       },
     },
     // Password Reset Fields
     resetPasswordToken: {
-      type: String,
-      default: null,
+      type: DataTypes.STRING,
+      defaultValue: null,
     },
     resetPasswordExpires: {
-      type: Date,
-      default: null,
+      type: DataTypes.DATE,
+      defaultValue: null,
     },
   },
   {
+    sequelize,
+    modelName: 'User',
+    tableName: 'users',
     timestamps: true,
+    indexes: [{ fields: ['email'] }, { fields: ['stripeCustomerId'] }],
   },
 );
 
-// Match user-entered password to hashed password in database
-userSchema.methods.matchPassword = async function (enteredPassword) {
+// Instance method to match password
+User.prototype.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Method to generate password reset token
-userSchema.methods.createPasswordResetToken = function () {
+// Instance method to create password reset token
+User.prototype.createPasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
-
-  // Hash token and save to database
   this.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-
-  // Set token expiration (1 hour)
-  this.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
-
+  this.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
   return resetToken;
 };
 
-// Method to clear password reset fields
-userSchema.methods.clearPasswordResetToken = function () {
+// Instance method to clear password reset fields
+User.prototype.clearPasswordResetToken = function () {
   this.resetPasswordToken = null;
   this.resetPasswordExpires = null;
 };
 
-// Encrypt password using bcrypt before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    return next(); // Prevent unnecessary hashing
+// Hook to hash password before saving
+User.beforeCreate(async (user) => {
+  if (user.password) {
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(user.password, salt);
   }
-
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
-const User = mongoose.model('User', userSchema);
+User.beforeUpdate(async (user) => {
+  if (user.changed('password')) {
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(user.password, salt);
+  }
+});
 
 export default User;
