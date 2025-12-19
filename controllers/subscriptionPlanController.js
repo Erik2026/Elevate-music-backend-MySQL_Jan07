@@ -255,26 +255,70 @@ export const updateSubscriptionPlan = async (req, res) => {
     const { id } = req.params;
     const updateData = { ...req.body, lastModifiedById: req.user.id };
 
-    // Remove fields that shouldn't be updated directly (except new price IDs)
-    delete updateData.stripePriceId;
-    delete updateData.stripeProductId;
-    delete updateData.createdBy;
-
-    // Allow updating price IDs if manually provided
-    if (updateData.stripeMonthlyPriceId === undefined) {
-      delete updateData.stripeMonthlyPriceId;
-    }
-    if (updateData.stripeYearlyPriceId === undefined) {
-      delete updateData.stripeYearlyPriceId;
+    // Get existing plan to compare prices
+    const existingPlan = await SubscriptionPlan.findByPk(id);
+    if (!existingPlan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found',
+      });
     }
 
     // Convert string numbers to actual numbers
-    if (updateData.monthlyCost) {
-      updateData.monthlyCost = parseFloat(updateData.monthlyCost);
+    const newMonthlyCost = updateData.monthlyCost ? parseFloat(updateData.monthlyCost) : existingPlan.monthlyCost;
+    const newAnnualCost = updateData.annualCost ? parseFloat(updateData.annualCost) : existingPlan.annualCost;
+
+    // Auto-create new Stripe prices if costs changed and Stripe is available
+    let monthlyPriceId = existingPlan.stripeMonthlyPriceId;
+    let yearlyPriceId = existingPlan.stripeYearlyPriceId;
+
+    if (stripe && (newMonthlyCost !== existingPlan.monthlyCost || newAnnualCost !== existingPlan.annualCost)) {
+      try {
+        // Create new monthly price if cost changed
+        if (newMonthlyCost !== existingPlan.monthlyCost) {
+          const monthlyPrice = await stripe.prices.create({
+            unit_amount: Math.round(newMonthlyCost * 100),
+            currency: 'usd',
+            recurring: { interval: 'month' },
+            product: existingPlan.stripeProductId,
+            nickname: `${existingPlan.title} Monthly - Updated`
+          });
+          monthlyPriceId = monthlyPrice.id;
+        }
+
+        // Create new yearly price if cost changed
+        if (newAnnualCost !== existingPlan.annualCost) {
+          const yearlyPrice = await stripe.prices.create({
+            unit_amount: Math.round(newAnnualCost * 100),
+            currency: 'usd',
+            recurring: { interval: 'year' },
+            product: existingPlan.stripeProductId,
+            nickname: `${existingPlan.title} Yearly - Updated`
+          });
+          yearlyPriceId = yearlyPrice.id;
+        }
+
+        console.log('Auto-created new Stripe prices:', { monthlyPriceId, yearlyPriceId });
+      } catch (stripeError) {
+        console.error('Stripe error creating new prices:', stripeError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create new Stripe prices',
+          error: stripeError.message,
+        });
+      }
     }
-    if (updateData.annualCost) {
-      updateData.annualCost = parseFloat(updateData.annualCost);
-    }
+
+    // Update the plan with new data and price IDs
+    updateData.monthlyCost = newMonthlyCost;
+    updateData.annualCost = newAnnualCost;
+    updateData.stripeMonthlyPriceId = monthlyPriceId;
+    updateData.stripeYearlyPriceId = yearlyPriceId;
+
+    // Remove fields that shouldn't be updated directly
+    delete updateData.stripePriceId;
+    delete updateData.stripeProductId;
+    delete updateData.createdBy;
 
     await SubscriptionPlan.update(updateData, { where: { id } });
     
@@ -285,16 +329,9 @@ export const updateSubscriptionPlan = async (req, res) => {
       ]
     });
 
-    if (!updatedPlan) {
-      return res.status(404).json({
-        success: false,
-        message: 'Subscription plan not found',
-      });
-    }
-
     return res.json({
       success: true,
-      message: 'Subscription plan updated successfully',
+      message: 'Subscription plan updated and synced with Stripe',
       data: updatedPlan,
     });
   } catch (error) {
@@ -388,8 +425,8 @@ export const getCurrentSubscriptionPlan = async (req, res) => {
     const planData = {
       id: currentPlan.id,
       title: currentPlan.title,
-      monthlyCost: currentPlan.monthlyCostFormatted,
-      annualCost: currentPlan.annualCostFormatted,
+      monthlyCost: currentPlan.monthlyCost,
+      annualCost: currentPlan.annualCost,
       adSupported: currentPlan.adSupported,
       audioFileType: currentPlan.audioFileType,
       offlineDownloads: currentPlan.offlineDownloads,
@@ -397,9 +434,9 @@ export const getCurrentSubscriptionPlan = async (req, res) => {
       soundscapeTracks: currentPlan.soundscapeTracks,
       dynamicAudioFeatures: currentPlan.dynamicAudioFeatures,
       customTrackRequests: currentPlan.customTrackRequests,
-      priceId: currentPlan.stripePriceId, // Keep for backward compatibility
-      monthlyPriceId: currentPlan.stripeMonthlyPriceId || currentPlan.stripePriceId || '',
-      yearlyPriceId: currentPlan.stripeYearlyPriceId || currentPlan.stripePriceId || '',
+      stripePriceId: currentPlan.stripePriceId, // Keep for backward compatibility
+      stripeMonthlyPriceId: currentPlan.stripeMonthlyPriceId || '',
+      stripeYearlyPriceId: currentPlan.stripeYearlyPriceId || '',
       description: currentPlan.description,
       features: currentPlan.features,
     };
