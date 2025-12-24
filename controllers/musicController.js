@@ -41,12 +41,6 @@ const getMusicByCategory = asyncHandler(async (req, res) => {
   try {
     const { categoryId } = req.params;
 
-    // UUID validation for Sequelize
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(categoryId)) {
-      return res.status(400).json({ message: 'Invalid category ID' });
-    }
-
     const musicList = await Music.findAll({
       where: { categoryId },
       include: [{
@@ -116,7 +110,7 @@ const getMusic = asyncHandler(async (req, res) => {
       let categoryTypeDetails = null;
       if (music.category && music.categoryType && music.category.types) {
         categoryTypeDetails = music.category.types.find(
-          (type) => type.id === music.categoryType,
+          (type) => type.id == music.categoryType,
         );
       }
 
@@ -131,7 +125,11 @@ const getMusic = asyncHandler(async (req, res) => {
               description: music.category.description,
             }
           : null, // Handle null category
-        categoryType: categoryTypeDetails,
+        categoryType: categoryTypeDetails || {
+          id: parseInt(music.categoryType) || 0,
+          name: 'Unknown',
+          description: ''
+        },
       };
     });
 
@@ -221,12 +219,6 @@ const createMusic = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const updateMusic = asyncHandler(async (req, res) => {
   try {
-    // UUID validation for Sequelize
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(req.params.id)) {
-      return res.status(400).json({ message: 'Invalid music ID' });
-    }
-
     const music = await Music.findByPk(req.params.id);
 
     if (!music) {
@@ -250,10 +242,6 @@ const updateMusic = asyncHandler(async (req, res) => {
     music.artist = req.body.artist || music.artist;
     // Validate UUIDs before assignment
     if (req.body.category) {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(req.body.category)) {
-        return res.status(400).json({ message: 'Invalid category ID' });
-      }
       music.categoryId = req.body.category;
     }
     if (req.body.categoryType) {
@@ -321,12 +309,6 @@ const updateMusic = asyncHandler(async (req, res) => {
 // @route   DELETE /api/music/:id
 // @access  Private/Admin
 const deleteMusic = asyncHandler(async (req, res) => {
-  // UUID validation for Sequelize
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(req.params.id)) {
-    return res.status(400).json({ message: 'Invalid music ID' });
-  }
-
   const music = await Music.findByPk(req.params.id);
   if (!music) {
     res.status(404);

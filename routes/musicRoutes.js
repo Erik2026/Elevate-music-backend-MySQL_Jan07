@@ -20,9 +20,9 @@ const router = express.Router();
 router.get('/admin', protect, adminOnly, getMusic);
 router.get('/admin/category/:categoryId', protect, adminOnly, getMusicByCategory);
 
-// Public/User routes (requires authentication and active subscription)
-router.get('/', userOperationLimiter, protect, requireSubscription, getMusic);
-router.get('/category/:categoryId', userOperationLimiter, protect, requireSubscription, getMusicByCategory);
+// Public/User routes (open access for music streaming)
+router.get('/', getMusic);
+router.get('/category/:categoryId', getMusicByCategory);
 router.post(
   '/upload',
   adminOperationLimiter, // More lenient rate limit for admin operations
