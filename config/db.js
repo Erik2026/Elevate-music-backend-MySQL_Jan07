@@ -28,7 +28,8 @@ const connectDB = async () => {
     console.log('MySQL Database connected successfully');
 
     // Sync all models with database
-    await sequelize.sync({ alter: false }); // Use alter: true only in development to update schema
+    const syncOptions = { alter: false }; // Use alter: true only in development to update schema
+    await sequelize.sync(syncOptions);
     console.log('All models synced with database');
 
     return sequelize;
