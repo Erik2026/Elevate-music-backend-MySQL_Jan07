@@ -2,8 +2,14 @@ import { Resend } from 'resend';
 
 class EmailService {
   constructor() {
-    // Initialize Resend with API key from environment
-    this.resend = new Resend(process.env.RESEND_API_KEY);
+    // Only initialize Resend if API key is available
+    if (process.env.RESEND_API_KEY) {
+      this.resend = new Resend(process.env.RESEND_API_KEY);
+      this.isConfigured = true;
+    } else {
+      this.resend = null;
+      this.isConfigured = false;
+    }
 
     // Verify configuration on startup
     this.verifyConfiguration();
@@ -11,17 +17,21 @@ class EmailService {
 
   verifyConfiguration() {
     if (!process.env.RESEND_API_KEY) {
-      console.warn('  WARNING: RESEND_API_KEY is not set in .env file');
-      console.warn('   Emails will not be sent until this is configured');
+      console.warn('⚠️  WARNING: RESEND_API_KEY is not set - Email service disabled');
     } else {
-      console.log('Resend email service initialized');
-      console.log('Email from:', process.env.EMAIL_FROM || 'Elevate <onboarding@resend.dev>');
+      console.log('✅ Resend email service initialized');
+      console.log('📧 Email from:', process.env.EMAIL_FROM || 'Elevate <onboarding@resend.dev>');
     }
   }
 
   // ============ SUBSCRIPTION REMINDER EMAILS ============
 
   async sendReminderEmail(user, reminderType, remainingDays) {
+    if (!this.isConfigured) {
+      console.warn('⚠️  Email service not configured - skipping reminder email');
+      return { success: false, error: 'Email service not configured' };
+    }
+
     const template = this.getEmailTemplate(reminderType, user, remainingDays);
 
     try {
@@ -87,6 +97,11 @@ class EmailService {
   // ============ PASSWORD RESET EMAIL METHODS ============
 
   async sendPasswordResetEmail(user, resetToken) {
+    if (!this.isConfigured) {
+      console.warn('⚠️  Email service not configured - skipping password reset email');
+      return { success: false, error: 'Email service not configured' };
+    }
+
     // Construct reset link for Flutter app
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
@@ -116,6 +131,11 @@ class EmailService {
   }
 
   async sendPasswordResetConfirmationEmail(user) {
+    if (!this.isConfigured) {
+      console.warn('⚠️  Email service not configured - skipping confirmation email');
+      return { success: false, error: 'Email service not configured' };
+    }
+
     const loginLink = `${process.env.FRONTEND_URL}/login`;
 
     console.log('Sending password reset confirmation to:', user.email);
