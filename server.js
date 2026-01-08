@@ -162,6 +162,9 @@ app.use((req, res, next) => {
 
 app.use(cookieParser());
 
+// Handle favicon requests to prevent 500 errors
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Mount routes with rate limiting for file operations
 app.use('/api/users', userRoutes);
 app.use('/api/categories', categoryRoutes);
