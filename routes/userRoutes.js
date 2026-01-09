@@ -2,6 +2,7 @@ import express from 'express';
 import {
   authUser,
   registerUser,
+  registerAdmin,
   logoutUser,
   getUserProfile,
   updateUserProfile,
@@ -18,6 +19,7 @@ import { adminOnly } from '../middleware/adminMiddleware.js';
 const router = express.Router();
 
 router.post('/', registerUser);
+router.post('/admin', registerAdmin); // Admin registration endpoint
 router.post('/auth', authUser);
 router.post('/logout', logoutUser);
 router.post('/forgot-password', forgotUserPassword);

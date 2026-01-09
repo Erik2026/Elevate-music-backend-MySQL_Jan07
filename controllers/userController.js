@@ -90,6 +90,55 @@ const authUser = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Register a new admin user
+// @route   POST /api/users/admin
+// @access  Public (or can be made private)
+const registerAdmin = asyncHandler(async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // Check if the user already exists
+    let userExists = await User.findOne({ where: { email } });
+    if (userExists) {
+      res.status(400);
+      throw new Error('User already exists');
+    }
+
+    // Create a new admin user (password will be hashed by beforeCreate hook)
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: 'admin', // Force admin role
+    });
+
+    if (user) {
+      const token = generateToken(user.id);
+
+      // Set the token as an HTTP-only cookie
+      res.cookie('jwt', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      res.status(201).json({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token,
+      });
+    } else {
+      res.status(400);
+      throw new Error('Invalid user data');
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
@@ -493,6 +542,7 @@ const getBillingStatus = asyncHandler(async (req, res) => {
 export {
   authUser,
   registerUser,
+  registerAdmin,
   logoutUser,
   getUserProfile,
   updateUserProfile,
