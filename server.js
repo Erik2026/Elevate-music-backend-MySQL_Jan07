@@ -83,6 +83,7 @@ const corsOptions = {
     const allowedOrigins = [
       'https://elevateintune.com',
       'https://elevate-music-backend-mysqldec13-production.up.railway.app',
+      'https://elevate-admin-frontend-production.up.railway.app',
       'http://localhost:3000',
       'http://localhost:5173',
       'http://127.0.0.1:3000',
@@ -123,6 +124,7 @@ app.options('*', (req, res) => {
   // Check if origin is allowed using CORS logic
   const allowedOrigins = [
     'https://elevateintune.com',
+    'https://elevate-admin-frontend-production.up.railway.app',
     'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
