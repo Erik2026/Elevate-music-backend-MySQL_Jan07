@@ -112,7 +112,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const user = await User.create({
       name,
       email,
-      password,
+      password: hashedPassword, // Use the hashed password
       role: role || 'user', // Assign role or default to 'user'
     });
 
