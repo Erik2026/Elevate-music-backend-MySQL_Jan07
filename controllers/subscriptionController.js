@@ -1006,6 +1006,34 @@ export const cancelSubscription = async (req, res) => {
       });
     }
 
+    // First, get the current subscription status from Stripe
+    const currentSubscription = await stripe.subscriptions.retrieve(user.subscription.id);
+    
+    // Check if subscription is already canceled
+    if (currentSubscription.status === 'canceled') {
+      return res.status(400).json({
+        message: 'Subscription is already canceled',
+        subscription: {
+          id: currentSubscription.id,
+          status: currentSubscription.status,
+        },
+      });
+    }
+
+    // Check if subscription is already set to cancel at period end
+    if (currentSubscription.cancel_at_period_end) {
+      return res.json({
+        success: true,
+        message: 'Subscription is already set to cancel at the end of the current billing period',
+        subscription: {
+          id: currentSubscription.id,
+          status: currentSubscription.status,
+          cancelAtPeriodEnd: currentSubscription.cancel_at_period_end,
+          currentPeriodEnd: currentSubscription.current_period_end,
+        },
+      });
+    }
+
     // Cancel subscription at period end (user keeps access until then)
     const subscription = await stripe.subscriptions.update(user.subscription.id, {
       cancel_at_period_end: true,
