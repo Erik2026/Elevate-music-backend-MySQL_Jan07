@@ -203,8 +203,13 @@ export const handleWebhook = async (req, res) => {
           currentPeriodEnd: currentPeriodEndUpdated,
           paymentDate: new Date(),
           interval: subscriptionUpdated.items.data[0]?.plan?.interval || 'month',
+          cancelAtPeriodEnd: subscriptionUpdated.cancel_at_period_end, // Track cancellation
         };
         await userUpdated.save();
+        
+        if (subscriptionUpdated.cancel_at_period_end) {
+          console.log('Subscription marked for cancellation at period end:', subscriptionUpdated.id);
+        }
       }
       break;
 
@@ -304,6 +309,7 @@ export const getSubscriptionStatus = async (req, res) => {
         interval: interval, // Use interval from user's database record
         isActive: subscription.status === 'active' || subscription.status === 'trialing',
         paymentDate: user.subscription.paymentDate, // Add payment date from database
+        willCancelAtPeriodEnd: subscription.cancel_at_period_end, // Explicit flag for UI
       },
     };
 
@@ -988,28 +994,45 @@ export const cancelSubscription = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
+    
+    // Parse subscription if it's a string
+    if (user && typeof user.subscription === 'string') {
+      user.subscription = JSON.parse(user.subscription);
+    }
+    
     if (!user || !user.subscription || !user.subscription.id) {
       return res.status(404).json({
         message: 'No active subscription found',
       });
     }
 
-    // Cancel subscription at period end
+    // Cancel subscription at period end (user keeps access until then)
     const subscription = await stripe.subscriptions.update(user.subscription.id, {
       cancel_at_period_end: true,
     });
 
+    console.log('Subscription cancelled at period end:', {
+      subscriptionId: subscription.id,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      currentPeriodEnd: subscription.current_period_end,
+    });
+
     // Update user subscription status
-    user.subscription.status = subscription.status;
-    user.subscription.cancelAtPeriodEnd = subscription.cancel_at_period_end;
+    user.subscription = {
+      ...user.subscription,
+      status: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    };
     await user.save();
 
     return res.json({
-      message: 'Subscription will be canceled at the end of the current period',
+      success: true,
+      message: 'Subscription will be cancelled at the end of the current billing period',
       subscription: {
         id: subscription.id,
         status: subscription.status,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        currentPeriodEnd: subscription.current_period_end,
       },
     });
   } catch (error) {
@@ -1165,13 +1188,14 @@ export const createSubscription = async (req, res) => {
         payment_behavior: 'default_incomplete',
         payment_settings: {
           payment_method_types: ['card'],
-          save_default_payment_method: 'on_subscription',
+          save_default_payment_method: 'on_subscription', // Auto-save payment method for recurring
         },
         expand: ['latest_invoice.payment_intent'],
-        collection_method: 'charge_automatically',
+        collection_method: 'charge_automatically', // Ensure automatic recurring billing
         metadata: {
           user_id: userId.toString(),
         },
+        // Do NOT set cancel_at_period_end - let it renew automatically
       });
 
       console.log('Subscription created:', {
