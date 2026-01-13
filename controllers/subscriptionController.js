@@ -1035,9 +1035,23 @@ export const cancelSubscription = async (req, res) => {
     }
 
     // Cancel subscription at period end (user keeps access until then)
-    const subscription = await stripe.subscriptions.update(user.subscription.id, {
-      cancel_at_period_end: true,
-    });
+    let subscription;
+    try {
+      subscription = await stripe.subscriptions.update(user.subscription.id, {
+        cancel_at_period_end: true,
+      });
+    } catch (stripeError) {
+      if (stripeError.message.includes('canceled subscription can only update')) {
+        return res.status(400).json({
+          message: 'Subscription is already canceled',
+          subscription: {
+            id: currentSubscription.id,
+            status: 'canceled',
+          },
+        });
+      }
+      throw stripeError;
+    }
 
     console.log('Subscription cancelled at period end:', {
       subscriptionId: subscription.id,
