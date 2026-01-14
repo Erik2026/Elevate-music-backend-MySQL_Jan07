@@ -1234,10 +1234,18 @@ export const forceActivateSubscription = async (req, res) => {
 
     // Get subscription from Stripe
     const subscription = await stripe.subscriptions.retrieve(user.subscription.id);
+    
+    console.log('Force activate - Stripe subscription:', {
+      id: subscription.id,
+      status: subscription.status,
+      current_period_end: subscription.current_period_end,
+      interval: subscription.items.data[0]?.plan?.interval,
+    });
+    
     const interval = subscription.items.data[0]?.plan?.interval || 'month';
     const validityDays = interval === 'year' ? 365 : 30;
 
-    // Force update database
+    // Force update database regardless of Stripe status
     user.subscription.status = 'active';
     user.subscription.interval = interval;
     user.subscription.currentPeriodEnd = subscription.current_period_end
@@ -1245,10 +1253,18 @@ export const forceActivateSubscription = async (req, res) => {
       : new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
     user.subscription.paymentDate = new Date();
 
+    console.log('Force activate - Updating database:', {
+      status: user.subscription.status,
+      interval: user.subscription.interval,
+      currentPeriodEnd: user.subscription.currentPeriodEnd,
+    });
+
     await user.save();
 
     return res.json({
-      message: 'Subscription force-activated',
+      message: 'Subscription force-activated in database',
+      stripeStatus: subscription.status,
+      databaseStatus: 'active',
       subscription: {
         id: subscription.id,
         status: 'active',
