@@ -6,6 +6,7 @@ import {
   confirmPayment,
   updateSubscriptionPaymentMethod,
   fixSubscriptionStatus,
+  forceActivateSubscription,
   getSubscriptionDetails,
   createSetupIntent,
   setAutoDebit,
@@ -31,6 +32,9 @@ router.post('/update-payment-method', protect, updateSubscriptionPaymentMethod);
 
 // POST /subscriptions/fix-status - Manually fix subscription status based on successful charge
 router.post('/fix-status', protect, fixSubscriptionStatus);
+
+// POST /subscriptions/force-activate - Force activate subscription (debug)
+router.post('/force-activate', protect, forceActivateSubscription);
 
 // POST /subscriptions/confirm - Manually confirm payment and activate subscription
 router.post('/confirm', protect, confirmPayment);

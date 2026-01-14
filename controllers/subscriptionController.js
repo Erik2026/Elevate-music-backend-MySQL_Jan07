@@ -292,7 +292,16 @@ export const getSubscriptionStatus = async (req, res) => {
     // IMPORTANT: Use database status as source of truth, not Stripe
     // Database status is updated by webhooks and fix-status endpoint
     const dbStatus = user.subscription.status || subscription.status;
-    const isActive = dbStatus === 'active' || dbStatus === 'trialing';
+    
+    // If database status is incomplete but Stripe has active subscription, sync it
+    if (dbStatus === 'incomplete' && (subscription.status === 'active' || subscription.status === 'trialing')) {
+      console.log('Database out of sync - updating from Stripe status:', subscription.status);
+      user.subscription.status = subscription.status;
+      user.subscription.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+      await user.save();
+    }
+    
+    const isActive = (user.subscription.status === 'active' || user.subscription.status === 'trialing');
 
     // Get interval from user's database record (more reliable than Stripe)
     const interval =
@@ -1201,6 +1210,57 @@ export const setAutoDebit = async (req, res) => {
     console.error('Error updating auto-debit preference:', error);
     return res.status(500).json({
       message: 'Failed to update auto-debit preference',
+      error: error.message,
+    });
+  }
+};
+
+// POST /subscriptions/force-activate - Force activate subscription (admin/debug)
+export const forceActivateSubscription = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (user && typeof user.subscription === 'string') {
+      user.subscription = JSON.parse(user.subscription);
+    }
+
+    if (!user || !user.subscription || !user.subscription.id) {
+      return res.status(404).json({ message: 'No subscription found' });
+    }
+
+    // Get subscription from Stripe
+    const subscription = await stripe.subscriptions.retrieve(user.subscription.id);
+    const interval = subscription.items.data[0]?.plan?.interval || 'month';
+    const validityDays = interval === 'year' ? 365 : 30;
+
+    // Force update database
+    user.subscription.status = 'active';
+    user.subscription.interval = interval;
+    user.subscription.currentPeriodEnd = subscription.current_period_end
+      ? new Date(subscription.current_period_end * 1000)
+      : new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+    user.subscription.paymentDate = new Date();
+
+    await user.save();
+
+    return res.json({
+      message: 'Subscription force-activated',
+      subscription: {
+        id: subscription.id,
+        status: 'active',
+        interval: interval,
+        currentPeriodEnd: user.subscription.currentPeriodEnd,
+        isActive: true,
+      },
+    });
+  } catch (error) {
+    console.error('Error force-activating subscription:', error);
+    return res.status(500).json({
+      message: 'Failed to force-activate subscription',
       error: error.message,
     });
   }
