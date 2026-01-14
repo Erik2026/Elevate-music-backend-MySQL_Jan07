@@ -293,15 +293,21 @@ export const getSubscriptionStatus = async (req, res) => {
     // Database status is updated by webhooks and fix-status endpoint
     const dbStatus = user.subscription.status || subscription.status;
     
+    console.log('getSubscriptionStatus - Database status:', dbStatus);
+    console.log('getSubscriptionStatus - Stripe status:', subscription.status);
+    
     // If database status is incomplete but Stripe has active subscription, sync it
     if (dbStatus === 'incomplete' && (subscription.status === 'active' || subscription.status === 'trialing')) {
       console.log('Database out of sync - updating from Stripe status:', subscription.status);
       user.subscription.status = subscription.status;
       user.subscription.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
       await user.save();
+      await user.reload();
     }
     
     const isActive = (user.subscription.status === 'active' || user.subscription.status === 'trialing');
+    
+    console.log('getSubscriptionStatus - Final isActive:', isActive);
 
     // Get interval from user's database record (more reliable than Stripe)
     const interval =
@@ -1260,6 +1266,7 @@ export const forceActivateSubscription = async (req, res) => {
     });
 
     await user.save();
+    await user.reload();
 
     return res.json({
       message: 'Subscription force-activated in database',
