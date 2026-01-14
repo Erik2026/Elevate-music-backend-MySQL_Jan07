@@ -1158,13 +1158,38 @@ export const setAutoDebit = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Parse subscription if it's a string
+    if (user && typeof user.subscription === 'string') {
+      user.subscription = JSON.parse(user.subscription);
+    }
+
     // Update user's auto-debit preference
     user.autoDebit = autoDebit;
+
+    // Sync with Stripe if user has active subscription
+    if (user.subscription && user.subscription.id) {
+      try {
+        await stripe.subscriptions.update(user.subscription.id, {
+          cancel_at_period_end: !autoDebit, // Cancel at period end if autoDebit is false
+        });
+        
+        user.subscription.cancelAtPeriodEnd = !autoDebit;
+        console.log(`Auto-debit ${autoDebit ? 'enabled' : 'disabled'} for subscription:`, user.subscription.id);
+      } catch (stripeError) {
+        console.error('Error updating Stripe subscription:', stripeError);
+        return res.status(500).json({
+          message: 'Failed to sync auto-debit with Stripe',
+          error: stripeError.message,
+        });
+      }
+    }
+
     await user.save();
 
     return res.json({
       message: 'Auto-debit preference updated',
       autoDebit: user.autoDebit,
+      subscriptionUpdated: !!user.subscription?.id,
     });
   } catch (error) {
     console.error('Error updating auto-debit preference:', error);
@@ -1234,10 +1259,10 @@ export const createSubscription = async (req, res) => {
         },
         expand: ['latest_invoice.payment_intent'],
         collection_method: 'charge_automatically', // Ensure automatic recurring billing
+        cancel_at_period_end: !user.autoDebit, // Respect user's auto-debit preference
         metadata: {
           user_id: userId.toString(),
         },
-        // Do NOT set cancel_at_period_end - let it renew automatically
       });
 
       console.log('Subscription created:', {
