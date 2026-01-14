@@ -289,6 +289,11 @@ export const getSubscriptionStatus = async (req, res) => {
     // Get latest subscription data from Stripe
     const subscription = await stripe.subscriptions.retrieve(user.subscription.id);
 
+    // IMPORTANT: Use database status as source of truth, not Stripe
+    // Database status is updated by webhooks and fix-status endpoint
+    const dbStatus = user.subscription.status || subscription.status;
+    const isActive = dbStatus === 'active' || dbStatus === 'trialing';
+
     // Get interval from user's database record (more reliable than Stripe)
     const interval =
       user.subscription.interval || subscription.items.data[0]?.plan?.interval || 'month';
@@ -301,15 +306,15 @@ export const getSubscriptionStatus = async (req, res) => {
     const response = {
       subscription: {
         id: subscription.id,
-        status: subscription.status,
+        status: dbStatus, // Use database status
         currentPeriodStart: subscription.current_period_start,
-        currentPeriodEnd: currentPeriodEnd, // Use currentPeriodEnd from user's database record
+        currentPeriodEnd: currentPeriodEnd,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
         plan: subscription.items.data[0]?.price?.id,
-        interval: interval, // Use interval from user's database record
-        isActive: subscription.status === 'active' || subscription.status === 'trialing',
-        paymentDate: user.subscription.paymentDate, // Add payment date from database
-        willCancelAtPeriodEnd: subscription.cancel_at_period_end, // Explicit flag for UI
+        interval: interval,
+        isActive: isActive, // Based on database status
+        paymentDate: user.subscription.paymentDate,
+        willCancelAtPeriodEnd: subscription.cancel_at_period_end,
       },
     };
 
