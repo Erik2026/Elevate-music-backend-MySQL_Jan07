@@ -298,10 +298,11 @@ export const getSubscriptionStatus = async (req, res) => {
     const interval =
       user.subscription.interval || subscription.items.data[0]?.plan?.interval || 'month';
 
-    // Use currentPeriodEnd from user's database record (more reliable than Stripe)
-    const currentPeriodEnd = user.subscription.currentPeriodEnd
-      ? Math.floor(new Date(user.subscription.currentPeriodEnd).getTime() / 1000)
-      : subscription.current_period_end;
+    // Use currentPeriodEnd from Stripe if database value is missing
+    const currentPeriodEnd = subscription.current_period_end || 
+      (user.subscription.currentPeriodEnd
+        ? Math.floor(new Date(user.subscription.currentPeriodEnd).getTime() / 1000)
+        : null);
 
     const response = {
       subscription: {
@@ -656,7 +657,7 @@ export const fixSubscriptionStatus = async (req, res) => {
       // Use Stripe's actual currentPeriodEnd from the retrieved subscription
       user.subscription.status = 'active';
 
-      // Safely set currentPeriodEnd with validation
+      // ALWAYS use Stripe's currentPeriodEnd if available
       if (currentSubscription.current_period_end) {
         user.subscription.currentPeriodEnd = new Date(
           currentSubscription.current_period_end * 1000,
