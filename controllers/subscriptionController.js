@@ -289,46 +289,51 @@ export const getSubscriptionStatus = async (req, res) => {
     // Get latest subscription data from Stripe
     const subscription = await stripe.subscriptions.retrieve(user.subscription.id);
 
-    // IMPORTANT: Use database status as source of truth, not Stripe
-    // Database status is updated by webhooks and fix-status endpoint
-    const dbStatus = user.subscription.status || subscription.status;
+    // CRITICAL: Use database status as PRIMARY source of truth
+    // Only sync from Stripe if database status is null/undefined
+    const dbStatus = user.subscription.status;
+    const stripeStatus = subscription.status;
     
     console.log('getSubscriptionStatus - Database status:', dbStatus);
-    console.log('getSubscriptionStatus - Stripe status:', subscription.status);
+    console.log('getSubscriptionStatus - Stripe status:', stripeStatus);
     
-    // If database status is incomplete but Stripe has active subscription, sync it
-    if (dbStatus === 'incomplete' && (subscription.status === 'active' || subscription.status === 'trialing')) {
-      console.log('Database out of sync - updating from Stripe status:', subscription.status);
-      user.subscription.status = subscription.status;
+    // Determine final status: database takes precedence
+    let finalStatus = dbStatus || stripeStatus;
+    
+    // Only sync from Stripe if database is incomplete but Stripe is active
+    if (dbStatus === 'incomplete' && (stripeStatus === 'active' || stripeStatus === 'trialing')) {
+      console.log('Database out of sync - updating from Stripe status:', stripeStatus);
+      finalStatus = stripeStatus;
+      user.subscription.status = stripeStatus;
       user.subscription.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
       await user.save();
-      await user.reload();
     }
     
-    const isActive = (user.subscription.status === 'active' || user.subscription.status === 'trialing');
+    // Calculate isActive based on FINAL status (database-first)
+    const isActive = (finalStatus === 'active' || finalStatus === 'trialing');
     
+    console.log('getSubscriptionStatus - Final status:', finalStatus);
     console.log('getSubscriptionStatus - Final isActive:', isActive);
 
     // Get interval from user's database record (more reliable than Stripe)
     const interval =
       user.subscription.interval || subscription.items.data[0]?.plan?.interval || 'month';
 
-    // Use currentPeriodEnd from Stripe if database value is missing
-    const currentPeriodEnd = subscription.current_period_end || 
-      (user.subscription.currentPeriodEnd
-        ? Math.floor(new Date(user.subscription.currentPeriodEnd).getTime() / 1000)
-        : null);
+    // Use currentPeriodEnd from database if available, otherwise from Stripe
+    const currentPeriodEnd = user.subscription.currentPeriodEnd
+      ? Math.floor(new Date(user.subscription.currentPeriodEnd).getTime() / 1000)
+      : subscription.current_period_end;
 
     const response = {
       subscription: {
         id: subscription.id,
-        status: dbStatus, // Use database status
+        status: finalStatus, // Use final status (database-first)
         currentPeriodStart: subscription.current_period_start,
         currentPeriodEnd: currentPeriodEnd,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
         plan: subscription.items.data[0]?.price?.id,
         interval: interval,
-        isActive: isActive, // Based on database status
+        isActive: isActive, // Based on final status
         paymentDate: user.subscription.paymentDate,
         willCancelAtPeriodEnd: subscription.cancel_at_period_end,
       },
@@ -1246,14 +1251,28 @@ export const forceActivateSubscription = async (req, res) => {
       status: subscription.status,
       current_period_end: subscription.current_period_end,
       interval: subscription.items.data[0]?.plan?.interval,
+      cancel_at_period_end: subscription.cancel_at_period_end,
     });
     
     const interval = subscription.items.data[0]?.plan?.interval || 'month';
     const validityDays = interval === 'year' ? 365 : 30;
 
+    // Try to update Stripe subscription to remove cancel_at_period_end
+    try {
+      if (subscription.cancel_at_period_end) {
+        await stripe.subscriptions.update(subscription.id, {
+          cancel_at_period_end: false,
+        });
+        console.log('Removed cancel_at_period_end from Stripe subscription');
+      }
+    } catch (stripeError) {
+      console.log('Could not update Stripe subscription:', stripeError.message);
+    }
+
     // Force update database regardless of Stripe status
     user.subscription.status = 'active';
     user.subscription.interval = interval;
+    user.subscription.cancelAtPeriodEnd = false; // Clear cancellation flag
     user.subscription.currentPeriodEnd = subscription.current_period_end
       ? new Date(subscription.current_period_end * 1000)
       : new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -1262,6 +1281,7 @@ export const forceActivateSubscription = async (req, res) => {
     console.log('Force activate - Updating database:', {
       status: user.subscription.status,
       interval: user.subscription.interval,
+      cancelAtPeriodEnd: user.subscription.cancelAtPeriodEnd,
       currentPeriodEnd: user.subscription.currentPeriodEnd,
     });
 
@@ -1276,6 +1296,7 @@ export const forceActivateSubscription = async (req, res) => {
         id: subscription.id,
         status: 'active',
         interval: interval,
+        cancelAtPeriodEnd: false,
         currentPeriodEnd: user.subscription.currentPeriodEnd,
         isActive: true,
       },
