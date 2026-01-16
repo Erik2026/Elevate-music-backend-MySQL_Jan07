@@ -45,27 +45,27 @@ export const handleWebhook = async (req, res) => {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
         if (subscription.status === 'active' || subscription.status === 'trialing') {
-          // Safely set currentPeriodEnd with validation
+          const interval = subscription.items.data[0]?.plan?.interval || 'month';
           let currentPeriodEnd;
           if (subscription.current_period_end) {
             currentPeriodEnd = new Date(subscription.current_period_end * 1000);
           } else {
-            // Fallback: set based on interval
-            const interval = subscription.items.data[0]?.plan?.interval || 'month';
             const validityDays = interval === 'year' ? 365 : 30;
             currentPeriodEnd = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
           }
 
-          await User.findOneAndUpdate(
-            { 'subscription.id': subscriptionId },
-            {
-              'subscription.status': subscription.status,
-              'subscription.currentPeriodEnd': currentPeriodEnd,
-              'subscription.paymentDate': new Date(),
-              'subscription.interval': subscription.items.data[0]?.plan?.interval || 'month',
-            },
-          );
-          console.log('Updated subscription status to active for subscription:', subscriptionId);
+          const user = await User.findOne({ where: { stripeCustomerId: subscription.customer } });
+          if (user) {
+            user.subscription = {
+              ...user.subscription,
+              status: subscription.status,
+              currentPeriodEnd: currentPeriodEnd,
+              paymentDate: new Date(),
+              interval: interval,
+            };
+            await user.save();
+            console.log('Updated subscription status to active for subscription:', subscriptionId);
+          }
         }
       }
       break;
@@ -88,59 +88,38 @@ export const handleWebhook = async (req, res) => {
           paymentIntent: charge.payment_intent,
         });
 
-        if (subscription.status === 'active' || subscription.status === 'trialing') {
-          // Safely set currentPeriodEnd with validation
-          let currentPeriodEnd;
-          if (subscription.current_period_end) {
-            currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-          } else {
-            // Fallback: set based on interval
-            const interval = subscription.items.data[0]?.plan?.interval || 'month';
-            const validityDays = interval === 'year' ? 365 : 30;
-            currentPeriodEnd = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
-          }
+        const interval = subscription.items.data[0]?.plan?.interval || 'month';
+        let currentPeriodEnd;
+        if (subscription.current_period_end) {
+          currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        } else {
+          const validityDays = interval === 'year' ? 365 : 30;
+          currentPeriodEnd = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+        }
 
-          await User.findOneAndUpdate(
-            { 'subscription.id': subscriptionId },
-            {
-              'subscription.status': subscription.status,
-              'subscription.currentPeriodEnd': currentPeriodEnd,
-              'subscription.paymentDate': new Date(),
-              'subscription.interval': subscription.items.data[0]?.plan?.interval || 'month',
-            },
-          );
-          console.log('Updated subscription status to active for subscription:', subscriptionId);
-        } else if (subscription.status === 'incomplete') {
-          // Since payment succeeded, mark subscription as active in our database
-          // This is a workaround for Stripe's payment method reuse limitation
-          try {
-            console.log(
-              'Payment succeeded via webhook, marking subscription as active in database...',
-            );
-
-            // Safely set currentPeriodEnd with validation
-            let currentPeriodEnd;
-            if (subscription.current_period_end) {
-              currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-            } else {
-              // Fallback: set based on interval
-              const interval = subscription.items.data[0]?.plan?.interval || 'month';
-              const validityDays = interval === 'year' ? 365 : 30;
-              currentPeriodEnd = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
-            }
-
-            await User.findOneAndUpdate(
-              { 'subscription.id': subscriptionId },
-              {
-                'subscription.status': 'active',
-                'subscription.currentPeriodEnd': currentPeriodEnd,
-                'subscription.paymentDate': new Date(),
-                'subscription.interval': subscription.items.data[0]?.plan?.interval || 'month',
-              },
-            );
+        const user = await User.findOne({ where: { stripeCustomerId: subscription.customer } });
+        if (user) {
+          if (subscription.status === 'active' || subscription.status === 'trialing') {
+            user.subscription = {
+              ...user.subscription,
+              status: subscription.status,
+              currentPeriodEnd: currentPeriodEnd,
+              paymentDate: new Date(),
+              interval: interval,
+            };
+            await user.save();
+            console.log('Updated subscription status to active for subscription:', subscriptionId);
+          } else if (subscription.status === 'incomplete') {
+            console.log('Payment succeeded via webhook, marking subscription as active in database...');
+            user.subscription = {
+              ...user.subscription,
+              status: 'active',
+              currentPeriodEnd: currentPeriodEnd,
+              paymentDate: new Date(),
+              interval: interval,
+            };
+            await user.save();
             console.log('Updated subscription to active via webhook:', subscriptionId);
-          } catch (updateError) {
-            console.error('Error updating subscription via webhook:', updateError);
           }
         }
       }
