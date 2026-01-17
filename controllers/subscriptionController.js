@@ -269,33 +269,23 @@ export const getSubscriptionStatus = async (req, res) => {
     // Get latest subscription data from Stripe
     const subscription = await stripe.subscriptions.retrieve(user.subscription.id);
 
-    // CRITICAL: Use database status as PRIMARY source of truth
-    // Only sync from Stripe if database status is null/undefined
-    const dbStatus = user.subscription.status;
+    // CRITICAL: Always use fresh Stripe data as source of truth
     const stripeStatus = subscription.status;
+    const stripeCancelAtPeriodEnd = subscription.cancel_at_period_end;
     
-    console.log('getSubscriptionStatus - Database status:', dbStatus);
+    console.log('getSubscriptionStatus - Database status:', user.subscription.status);
     console.log('getSubscriptionStatus - Stripe status:', stripeStatus);
+    console.log('getSubscriptionStatus - Stripe cancel_at_period_end:', stripeCancelAtPeriodEnd);
     
-    // Determine final status: database takes precedence
-    let finalStatus = dbStatus || stripeStatus;
+    // Use Stripe status as primary source
+    let finalStatus = stripeStatus;
     
-    // Only sync from Stripe if database is incomplete but Stripe is active
-    if (dbStatus === 'incomplete' && (stripeStatus === 'active' || stripeStatus === 'trialing')) {
-      console.log('Database out of sync - updating from Stripe status:', stripeStatus);
-      finalStatus = stripeStatus;
-      user.subscription.status = stripeStatus;
-      user.subscription.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-      await user.save();
-    }
-    
-    // Calculate isActive based on FINAL status (database-first)
+    // Calculate isActive based on Stripe status
     // IMPORTANT: If subscription is set to cancel at period end, it's still active until then
     const isActive = (finalStatus === 'active' || finalStatus === 'trialing') || 
-                     (subscription.cancel_at_period_end && finalStatus !== 'canceled');
+                     (stripeCancelAtPeriodEnd && finalStatus !== 'canceled');
     
     console.log('getSubscriptionStatus - Final status:', finalStatus);
-    console.log('getSubscriptionStatus - cancel_at_period_end:', subscription.cancel_at_period_end);
     console.log('getSubscriptionStatus - Final isActive:', isActive);
 
     // Get interval from user's database record (more reliable than Stripe)
