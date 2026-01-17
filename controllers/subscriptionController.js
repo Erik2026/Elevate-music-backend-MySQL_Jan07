@@ -1366,7 +1366,7 @@ export const createSubscription = async (req, res) => {
         },
         expand: ['latest_invoice.payment_intent'],
         collection_method: 'charge_automatically', // Ensure automatic recurring billing
-        cancel_at_period_end: !user.autoDebit, // Respect user's auto-debit preference
+        // DO NOT set cancel_at_period_end - subscriptions auto-renew by default
         metadata: {
           user_id: userId.toString(),
         },
