@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import User from '../models/userModel.js';
 import { Op } from 'sequelize';
+import { getOrCreateCustomer } from '../helpers/stripeCustomerHelper.js';
 
 // Debug: Check if STRIPE_SECRET_KEY is loaded
 console.log(
@@ -1105,17 +1106,8 @@ export const createSetupIntent = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Create Stripe customer if not exists
-    let stripeCustomerId = user.stripeCustomerId;
-    if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.name,
-      });
-      stripeCustomerId = customer.id;
-      user.stripeCustomerId = stripeCustomerId;
-      await user.save();
-    }
+    // Get or create valid Stripe customer (handles invalid/missing customers)
+    const stripeCustomerId = await getOrCreateCustomer(user);
 
     // Create SetupIntent for collecting payment method
     const setupIntent = await stripe.setupIntents.create({
@@ -1322,17 +1314,8 @@ export const createSubscription = async (req, res) => {
       return res.status(400).json({ message: 'Invalid priceId' });
     }
 
-    // Create Stripe customer if not exists
-    let stripeCustomerId = user.stripeCustomerId;
-    if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.name,
-      });
-      stripeCustomerId = customer.id;
-      user.stripeCustomerId = stripeCustomerId;
-      await user.save();
-    }
+    // Get or create valid Stripe customer (handles invalid/missing customers)
+    const stripeCustomerId = await getOrCreateCustomer(user);
 
     try {
       console.log('Creating subscription with price ID:', priceId);
