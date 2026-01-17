@@ -290,9 +290,12 @@ export const getSubscriptionStatus = async (req, res) => {
     }
     
     // Calculate isActive based on FINAL status (database-first)
-    const isActive = (finalStatus === 'active' || finalStatus === 'trialing');
+    // IMPORTANT: If subscription is set to cancel at period end, it's still active until then
+    const isActive = (finalStatus === 'active' || finalStatus === 'trialing') || 
+                     (subscription.cancel_at_period_end && finalStatus !== 'canceled');
     
     console.log('getSubscriptionStatus - Final status:', finalStatus);
+    console.log('getSubscriptionStatus - cancel_at_period_end:', subscription.cancel_at_period_end);
     console.log('getSubscriptionStatus - Final isActive:', isActive);
 
     // Get interval from user's database record (more reliable than Stripe)
