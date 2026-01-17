@@ -183,9 +183,13 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '/frontend/dist')));
   
   // Security: Apply rate limiting to static file serving
-  app.get('*', fileOperationLimiter, (req, res) =>
-    res.sendFile(path.resolve(__dirname, 'frontend', 'dist', 'index.html')),
-  );
+  // Exclude /uploads and /api routes from catch-all
+  app.get('*', fileOperationLimiter, (req, res, next) => {
+    if (req.path.startsWith('/uploads') || req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.resolve(__dirname, 'frontend', 'dist', 'index.html'));
+  });
 } else {
   app.get('/', (req, res) => {
     res.send('API is running....');
