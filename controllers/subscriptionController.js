@@ -303,12 +303,12 @@ export const getSubscriptionStatus = async (req, res) => {
         status: finalStatus, // Use final status (database-first)
         currentPeriodStart: subscription.current_period_start,
         currentPeriodEnd: currentPeriodEnd,
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        cancelAtPeriodEnd: stripeCancelAtPeriodEnd, // Use fresh Stripe value
         plan: subscription.items.data[0]?.price?.id,
         interval: interval,
         isActive: isActive, // Based on final status
         paymentDate: user.subscription.paymentDate,
-        willCancelAtPeriodEnd: subscription.cancel_at_period_end,
+        willCancelAtPeriodEnd: stripeCancelAtPeriodEnd, // Use fresh Stripe value
       },
     };
 
@@ -1082,6 +1082,48 @@ export const cancelSubscription = async (req, res) => {
       message: 'Failed to cancel subscription',
       error: error.message,
     });
+  }
+};
+
+// POST /subscriptions/resume - Resume cancelled subscription
+export const resumeSubscription = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (user && typeof user.subscription === 'string') {
+      user.subscription = JSON.parse(user.subscription);
+    }
+    
+    if (!user || !user.subscription || !user.subscription.id) {
+      return res.status(404).json({ message: 'No subscription found' });
+    }
+
+    const currentSubscription = await stripe.subscriptions.retrieve(user.subscription.id);
+    
+    if (!currentSubscription.cancel_at_period_end) {
+      return res.json({
+        success: true,
+        message: 'Subscription is already active',
+      });
+    }
+
+    const subscription = await stripe.subscriptions.update(user.subscription.id, {
+      cancel_at_period_end: false,
+    });
+
+    user.subscription.cancelAtPeriodEnd = false;
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: 'Subscription resumed',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to resume', error: error.message });
   }
 };
 
