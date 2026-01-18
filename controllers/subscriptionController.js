@@ -19,7 +19,18 @@ if (process.env.STRIPE_SECRET_KEY) {
   );
 }
 
+// Helper function to parse subscription if it's a string
+const parseUserSubscription = (user) => {
+  if (user && typeof user.subscription === 'string') {
+    user.subscription = JSON.parse(user.subscription);
+  }
+};
+
 export const handleWebhook = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
   let event;
@@ -247,6 +258,10 @@ export const handleWebhook = async (req, res) => {
 
 // GET /subscriptions/status - Get current subscription status
 export const getSubscriptionStatus = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -254,11 +269,7 @@ export const getSubscriptionStatus = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    
-    // Parse subscription if it's a string
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
     
     if (!user || !user.subscription || !user.subscription.id) {
       return res.json({
@@ -324,6 +335,10 @@ export const getSubscriptionStatus = async (req, res) => {
 
 // POST /subscriptions/update-payment-method - Update subscription with payment method from payment intent
 export const updateSubscriptionPaymentMethod = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -336,11 +351,7 @@ export const updateSubscriptionPaymentMethod = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    
-    // Parse subscription if it's a string
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
     
     console.log('updateSubscriptionPaymentMethod - User lookup:', {
       userId: userId,
@@ -540,6 +551,10 @@ export const updateSubscriptionPaymentMethod = async (req, res) => {
 
 // POST /subscriptions/fix-status - Manually fix subscription status based on successful charge
 export const fixSubscriptionStatus = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -547,11 +562,7 @@ export const fixSubscriptionStatus = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    
-    // Parse subscription if it's a string
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
     
     if (!user || !user.subscription || !user.subscription.id) {
       return res.status(404).json({
@@ -812,6 +823,10 @@ export const fixSubscriptionStatus = async (req, res) => {
 
 // POST /subscriptions/confirm - Manually confirm payment and activate subscription
 export const confirmPayment = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -819,11 +834,7 @@ export const confirmPayment = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    
-    // Parse subscription if it's a string
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
     
     if (!user || !user.subscription || !user.subscription.id) {
       return res.status(404).json({
@@ -915,6 +926,10 @@ export const confirmPayment = async (req, res) => {
 
 // GET /subscriptions/details - Get detailed subscription information including countdown
 export const getSubscriptionDetails = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -986,6 +1001,10 @@ export const getSubscriptionDetails = async (req, res) => {
 
 // POST /subscriptions/cancel - Cancel subscription at period end
 export const cancelSubscription = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -993,11 +1012,7 @@ export const cancelSubscription = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    
-    // Parse subscription if it's a string
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
     
     if (!user || !user.subscription || !user.subscription.id) {
       return res.status(404).json({
@@ -1087,6 +1102,10 @@ export const cancelSubscription = async (req, res) => {
 
 // POST /subscriptions/resume - Resume cancelled subscription
 export const resumeSubscription = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -1094,9 +1113,7 @@ export const resumeSubscription = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
     
     if (!user || !user.subscription || !user.subscription.id) {
       return res.status(404).json({ message: 'No subscription found' });
@@ -1129,6 +1146,10 @@ export const resumeSubscription = async (req, res) => {
 
 // POST /payments/setup-intent - Create SetupIntent for payment method collection
 export const createSetupIntent = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -1174,6 +1195,10 @@ export const createSetupIntent = async (req, res) => {
 
 // PUT /subscriptions/auto-debit - Toggle auto-debit preference
 export const setAutoDebit = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -1190,10 +1215,7 @@ export const setAutoDebit = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Parse subscription if it's a string
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
 
     // Update user's auto-debit preference
     user.autoDebit = autoDebit;
@@ -1234,6 +1256,10 @@ export const setAutoDebit = async (req, res) => {
 
 // POST /subscriptions/force-activate - Force activate subscription (admin/debug)
 export const forceActivateSubscription = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
@@ -1241,9 +1267,7 @@ export const forceActivateSubscription = async (req, res) => {
     }
 
     const user = await User.findByPk(userId);
-    if (user && typeof user.subscription === 'string') {
-      user.subscription = JSON.parse(user.subscription);
-    }
+    parseUserSubscription(user);
 
     if (!user || !user.subscription || !user.subscription.id) {
       return res.status(404).json({ message: 'No subscription found' });
@@ -1318,6 +1342,10 @@ export const forceActivateSubscription = async (req, res) => {
 
 // POST /subscriptions/create
 export const createSubscription = async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe not configured' });
+  }
+  
   try {
     const userId = req.user && req.user.id;
     if (!userId) {
