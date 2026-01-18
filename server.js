@@ -147,6 +147,10 @@ app.options('*', (req, res) => {
 });
 
 // Serve static uploads with proper CORS and range support for media
+const uploadsPath = process.env.RENDER_DISK_PATH 
+  ? path.join(process.env.RENDER_DISK_PATH, 'uploads')
+  : path.join(__dirname, 'uploads');
+
 app.use(
   '/uploads',
   cors(corsOptions),
@@ -154,8 +158,8 @@ app.use(
     res.setHeader('Accept-Ranges', 'bytes');
     next();
   },
-  express.static(path.join(__dirname, 'uploads')),
-); // Use path.join for cross-platform compatibility
+  express.static(uploadsPath),
+);
 
 app.use((req, res, next) => {
   console.log('CORS headers set for:', req.method, req.url);

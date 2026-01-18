@@ -13,6 +13,13 @@ import sanitizeHtml from 'sanitize-html';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Get uploads directory path (Render persistent disk or local)
+const getUploadsPath = () => {
+  return process.env.RENDER_DISK_PATH 
+    ? path.join(process.env.RENDER_DISK_PATH, 'uploads')
+    : path.join(__dirname, '../uploads');
+};
+
 // Plain-text sanitizer for freeform text fields
 function sanitizeText(input = '') {
   const trimmed = typeof input === 'string' ? input.trim() : '';
@@ -265,7 +272,7 @@ const updateMusic = asyncHandler(async (req, res) => {
       if (music.fileUrl) {
         const sanitizedFileName = sanitizeFilename(path.basename(music.fileUrl));
         if (sanitizedFileName) {
-          const oldFilePath = path.join(__dirname, '../uploads', sanitizedFileName);
+          const oldFilePath = path.join(getUploadsPath(), sanitizedFileName);
           if (fs.existsSync(oldFilePath)) {
             fs.unlinkSync(oldFilePath);
           }
@@ -278,7 +285,7 @@ const updateMusic = asyncHandler(async (req, res) => {
       if (music.thumbnailUrl) {
         const sanitizedThumbName = sanitizeFilename(path.basename(music.thumbnailUrl));
         if (sanitizedThumbName) {
-          const oldThumbPath = path.join(__dirname, '../uploads', sanitizedThumbName);
+          const oldThumbPath = path.join(getUploadsPath(), sanitizedThumbName);
           if (fs.existsSync(oldThumbPath)) {
             fs.unlinkSync(oldThumbPath);
           }
@@ -319,14 +326,14 @@ const deleteMusic = asyncHandler(async (req, res) => {
   if (music.fileUrl) {
     const sanitizedFileName = sanitizeFilename(path.basename(music.fileUrl));
     if (sanitizedFileName) {
-      const filePath = path.join(__dirname, '../uploads', sanitizedFileName);
+      const filePath = path.join(getUploadsPath(), sanitizedFileName);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
   }
   if (music.thumbnailUrl) {
     const sanitizedThumbName = sanitizeFilename(path.basename(music.thumbnailUrl));
     if (sanitizedThumbName) {
-      const thumbPath = path.join(__dirname, '../uploads', sanitizedThumbName);
+      const thumbPath = path.join(getUploadsPath(), sanitizedThumbName);
       if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
     }
   }
