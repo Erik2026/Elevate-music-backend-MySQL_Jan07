@@ -125,6 +125,7 @@ const getMusic = asyncHandler(async (req, res) => {
         ...music.toJSON(),
         fileUrl: fileName ? `/uploads/${fileName}` : null,
         thumbnailUrl: thumbnailName ? `/uploads/${thumbnailName}` : null,
+        publishDate: music.publishDate,
         category: music.category
           ? {
               id: music.category.id,
@@ -158,6 +159,7 @@ const createMusic = asyncHandler(async (req, res) => {
     categoryType,
     duration,
     releaseDate,
+    publishDate,
     description: rawDescription,
   } = req.body;
   const audioFile = req.files?.file?.[0];
@@ -195,6 +197,7 @@ const createMusic = asyncHandler(async (req, res) => {
       fileUrl: `/uploads/${audioFile.filename}`,
       duration: Number(duration),
       releaseDate: new Date(releaseDate),
+      publishDate: publishDate ? new Date(publishDate) : null,
       userId: req.user.id,
       description,
     };
@@ -256,6 +259,9 @@ const updateMusic = asyncHandler(async (req, res) => {
     }
     music.duration = req.body.duration || music.duration;
     music.releaseDate = req.body.releaseDate || music.releaseDate;
+    if (req.body.publishDate !== undefined) {
+      music.publishDate = req.body.publishDate ? new Date(req.body.publishDate) : null;
+    }
 
     // Description (optional) with sanitization and length guard
     if (typeof req.body.description !== 'undefined') {

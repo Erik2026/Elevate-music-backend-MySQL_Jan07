@@ -50,6 +50,10 @@ const Music = sequelize.define(
     releaseDate: {
       type: DataTypes.DATE,
     },
+    publishDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     description: {
       type: DataTypes.TEXT,
       defaultValue: '',

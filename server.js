@@ -21,6 +21,7 @@ console.log('=== END SERVER STARTUP DEBUG ===');
 import express from 'express';;
 
 import connectDB from './config/db.js';
+import { sequelize } from './config/db.js';
 import cookieParser from 'cookie-parser';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import categoryRoutes from './routes/categoryRoutes.js';
@@ -41,6 +42,9 @@ const port = process.env.PORT || 5000;
 
 connectDB();
 
+// Auto-migrate database schema (one-time for publishDate column)
+await sequelize.sync({ alter: true });
+console.log(' Database schema synced');
 const app = express();
 
 // Security: Disable X-Powered-By header
