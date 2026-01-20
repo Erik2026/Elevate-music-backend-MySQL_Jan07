@@ -6,7 +6,7 @@ import {
   resendInvoice,
 } from '../controllers/invoiceController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { admin } from '../middleware/adminMiddleware.js';
+import { adminOnly } from '../middleware/adminMiddleware.js';
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ router.get('/', protect, getInvoices);
 router.get('/:id', protect, getInvoiceById);
 
 // Admin routes
-router.get('/admin/all', protect, admin, getAllInvoices);
-router.post('/:id/resend', protect, admin, resendInvoice);
+router.get('/admin/all', protect, adminOnly, getAllInvoices);
+router.post('/:id/resend', protect, adminOnly, resendInvoice);
 
 export default router;
