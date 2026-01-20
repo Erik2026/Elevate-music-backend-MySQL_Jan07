@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import User from '../models/userModel.js';
 import { Op } from 'sequelize';
 import { getOrCreateCustomer } from '../helpers/stripeCustomerHelper.js';
+import { handleSuccessfulPayment } from './invoiceController.js';
 
 // Debug: Check if STRIPE_SECRET_KEY is loaded
 console.log(
@@ -231,6 +232,17 @@ export const handleWebhook = async (req, res) => {
           paymentDate: new Date(),
         };
         await userPaid.save();
+        
+        // Generate and send invoice
+        handleSuccessfulPayment({
+          id: invoicePaid.subscription,
+          subscriptionId: invoicePaid.subscription,
+          amount: invoicePaid.amount_paid / 100,
+          currency: invoicePaid.currency,
+          stripeInvoiceId: invoicePaid.id,
+        }, userPaid).catch(err => {
+          console.error('Failed to generate invoice:', err);
+        });
       }
       break;
 

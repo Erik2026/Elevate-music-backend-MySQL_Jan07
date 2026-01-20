@@ -28,6 +28,7 @@ import musicRoutes from './routes/musicRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import subscriptionPlanRoutes from './routes/subscriptionPlanRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import invoiceRoutes from './routes/invoiceRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import notificationScheduler from './services/notificationScheduler.js';
 import cors from 'cors';
@@ -179,6 +180,7 @@ app.use('/api/music', musicRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/subscription-plans', subscriptionPlanRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/invoices', invoiceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/terms', termsRoutes);
 
