@@ -292,9 +292,9 @@ export const getSubscriptionStatus = async (req, res) => {
     let finalStatus = stripeStatus;
     
     // Calculate isActive based on Stripe status
-    // IMPORTANT: If subscription is set to cancel at period end, it's still active until then
-    const isActive = (finalStatus === 'active' || finalStatus === 'trialing') || 
-                     (stripeCancelAtPeriodEnd && finalStatus !== 'canceled');
+    // Subscription is active if status is active/trialing, regardless of cancel_at_period_end
+    // Frontend handles cancelAtPeriodEnd separately to show "CANCELLING" status
+    const isActive = (finalStatus === 'active' || finalStatus === 'trialing');
     
     console.log('getSubscriptionStatus - Final status:', finalStatus);
     console.log('getSubscriptionStatus - Final isActive:', isActive);

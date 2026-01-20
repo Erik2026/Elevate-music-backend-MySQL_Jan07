@@ -206,4 +206,9 @@ app.use(errorHandler);
 // Start notification scheduler
 notificationScheduler.start();
 
-app.listen(port, () => console.log(`Server started on port ${port}`));
+const server = app.listen(port, () => console.log(`Server started on port ${port}`));
+
+// Increase timeout for large file uploads (5 minutes)
+server.timeout = 300000; // 5 minutes
+server.keepAliveTimeout = 300000;
+server.headersTimeout = 310000;
