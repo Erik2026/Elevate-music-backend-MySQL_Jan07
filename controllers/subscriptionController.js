@@ -78,6 +78,17 @@ export const handleWebhook = async (req, res) => {
             };
             await user.save();
             console.log('Updated subscription status to active for subscription:', subscriptionId);
+            
+            // Generate and send invoice
+            handleSuccessfulPayment({
+              id: subscriptionId,
+              subscriptionId: subscriptionId,
+              amount: paymentIntent.amount / 100,
+              currency: paymentIntent.currency,
+              stripeInvoiceId: paymentIntent.invoice || paymentIntent.id,
+            }, user).catch(err => {
+              console.error('Failed to generate invoice:', err);
+            });
           }
         }
       }
@@ -122,6 +133,17 @@ export const handleWebhook = async (req, res) => {
             };
             await user.save();
             console.log('Updated subscription status to active for subscription:', subscriptionId);
+            
+            // Generate and send invoice
+            handleSuccessfulPayment({
+              id: subscriptionId,
+              subscriptionId: subscriptionId,
+              amount: charge.amount / 100,
+              currency: charge.currency,
+              stripeInvoiceId: charge.invoice || charge.id,
+            }, user).catch(err => {
+              console.error('Failed to generate invoice:', err);
+            });
           } else if (subscription.status === 'incomplete') {
             console.log('Payment succeeded via webhook, marking subscription as active in database...');
             user.subscription = {
@@ -133,6 +155,17 @@ export const handleWebhook = async (req, res) => {
             };
             await user.save();
             console.log('Updated subscription to active via webhook:', subscriptionId);
+            
+            // Generate and send invoice
+            handleSuccessfulPayment({
+              id: subscriptionId,
+              subscriptionId: subscriptionId,
+              amount: charge.amount / 100,
+              currency: charge.currency,
+              stripeInvoiceId: charge.invoice || charge.id,
+            }, user).catch(err => {
+              console.error('Failed to generate invoice:', err);
+            });
           }
         }
       }
