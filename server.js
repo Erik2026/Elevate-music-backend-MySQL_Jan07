@@ -72,6 +72,8 @@ app.use(
 
 // Stripe webhook must be registered BEFORE express.json() to preserve raw body
 app.post('/api/subscriptions/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+// Alias for Stripe webhook (backward compatibility)
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), handleWebhook);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
