@@ -292,20 +292,21 @@ export const getSubscriptionStatus = async (req, res) => {
     // Get latest subscription data from Stripe
     const subscription = await stripe.subscriptions.retrieve(user.subscription.id);
 
-    // CRITICAL: Always use fresh Stripe data as source of truth
+    // CRITICAL FIX: Use database status as primary source if it's active
+    // Database is updated by webhooks and is more reliable than Stripe API
+    const databaseStatus = user.subscription.status;
     const stripeStatus = subscription.status;
     const stripeCancelAtPeriodEnd = subscription.cancel_at_period_end;
     
-    console.log('getSubscriptionStatus - Database status:', user.subscription.status);
+    console.log('getSubscriptionStatus - Database status:', databaseStatus);
     console.log('getSubscriptionStatus - Stripe status:', stripeStatus);
     console.log('getSubscriptionStatus - Stripe cancel_at_period_end:', stripeCancelAtPeriodEnd);
     
-    // Use Stripe status as primary source
-    let finalStatus = stripeStatus;
+    // Use database status if it's active (webhook already processed payment)
+    // Otherwise use Stripe status
+    let finalStatus = databaseStatus === 'active' ? databaseStatus : stripeStatus;
     
-    // Calculate isActive based on Stripe status
-    // Subscription is active if status is active/trialing, regardless of cancel_at_period_end
-    // Frontend handles cancelAtPeriodEnd separately to show "CANCELLING" status
+    // Calculate isActive based on final status
     const isActive = (finalStatus === 'active' || finalStatus === 'trialing');
     
     console.log('getSubscriptionStatus - Final status:', finalStatus);
