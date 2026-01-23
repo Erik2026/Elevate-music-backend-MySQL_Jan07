@@ -28,15 +28,26 @@ class InvoiceEmailService {
     return new Promise((resolve, reject) => {
       try {
         const invoicesDir = path.join(__dirname, '../invoices');
+        console.log('Invoices directory:', invoicesDir);
+        
         if (!fs.existsSync(invoicesDir)) {
+          console.log('Creating invoices directory...');
           fs.mkdirSync(invoicesDir, { recursive: true });
         }
 
         const filename = `invoice-${invoice.invoiceId}.pdf`;
         const filepath = path.join(invoicesDir, filename);
+        console.log('PDF filepath:', filepath);
+        
         const doc = new PDFDocument({ margin: 50 });
+        const writeStream = fs.createWriteStream(filepath);
 
-        doc.pipe(fs.createWriteStream(filepath));
+        writeStream.on('error', (err) => {
+          console.error('Write stream error:', err);
+          reject(err);
+        });
+
+        doc.pipe(writeStream);
 
         // Header
         doc.fontSize(25).text('INVOICE', { align: 'center' });
@@ -76,9 +87,16 @@ class InvoiceEmailService {
 
         doc.end();
 
-        doc.on('finish', () => resolve(filepath));
-        doc.on('error', reject);
+        doc.on('finish', () => {
+          console.log('PDF generation finished');
+          resolve(filepath);
+        });
+        doc.on('error', (err) => {
+          console.error('PDF doc error:', err);
+          reject(err);
+        });
       } catch (error) {
+        console.error('PDF generation error:', error);
         reject(error);
       }
     });
