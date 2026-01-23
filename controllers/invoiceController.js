@@ -33,11 +33,15 @@ export const sendInvoice = async (invoice) => {
   try {
     const result = await sendInvoiceEmail(invoice.customerEmail, invoice);
     
+    console.log('Email send result:', result);
+    
     if (result.success) {
       invoice.emailSent = true;
       invoice.emailSentAt = new Date();
       await invoice.save();
       console.log('Invoice email sent:', invoice.invoiceId);
+    } else {
+      console.error('Email send failed:', result.error);
     }
     
     return result;
