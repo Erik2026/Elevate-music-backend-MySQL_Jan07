@@ -115,6 +115,9 @@ class InvoiceEmailService {
 
       if (error) {
         console.error('Resend error:', error);
+        if (error.message && error.message.includes('verify a domain')) {
+          return { success: false, error: 'Domain verification required. Please verify your domain at resend.com/domains' };
+        }
         return { success: false, error: error.message };
       }
 
