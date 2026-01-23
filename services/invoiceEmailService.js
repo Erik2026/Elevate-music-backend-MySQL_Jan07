@@ -12,10 +12,15 @@ class InvoiceEmailService {
     if (process.env.RESEND_API_KEY) {
       this.resend = new Resend(process.env.RESEND_API_KEY);
       this.isConfigured = true;
+      this.emailFrom = (process.env.EMAIL_FROM || 'Elevate <onboarding@resend.dev>')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      console.log('Resend email service initialized');
+      console.log('Email from:', this.emailFrom);
     } else {
       this.resend = null;
       this.isConfigured = false;
-      console.warn('⚠️  RESEND_API_KEY not set - Invoice emails disabled');
+      console.warn('RESEND_API_KEY not set - Invoice emails disabled');
     }
   }
 
@@ -81,16 +86,20 @@ class InvoiceEmailService {
 
   async sendInvoiceEmail(email, invoice) {
     if (!this.isConfigured) {
-      console.warn('⚠️  Email service not configured - skipping invoice email');
+      console.warn('Email service not configured - skipping invoice email');
       return { success: false, error: 'Email service not configured' };
     }
 
     try {
+      console.log('Attempting to send invoice email to:', email);
+      console.log('Invoice details:', { invoiceId: invoice.invoiceId, amount: invoice.amount });
+      
       const pdfPath = await this.generateInvoicePDF(invoice);
       const pdfBuffer = fs.readFileSync(pdfPath);
 
+      console.log('Sending email via Resend...');
       const { data, error } = await this.resend.emails.send({
-        from: process.env.EMAIL_FROM || 'Elevate <onboarding@resend.dev>',
+        from: this.emailFrom,
         to: [email],
         subject: `Invoice #${invoice.invoiceId} - Elevate Music Subscription`,
         html: this.getInvoiceEmailHTML(invoice),
@@ -103,14 +112,14 @@ class InvoiceEmailService {
       });
 
       if (error) {
-        console.error('❌ Resend error:', error);
+        console.error('Resend error:', error);
         return { success: false, error: error.message };
       }
 
-      console.log('✅ Invoice email sent successfully');
+      console.log('Invoice email sent successfully, Message ID:', data.id);
       return { success: true, messageId: data.id };
     } catch (error) {
-      console.error('❌ Error sending invoice email:', error);
+      console.error('Error sending invoice email:', error);
       return { success: false, error: error.message };
     }
   }

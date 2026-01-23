@@ -86,8 +86,10 @@ export const handleWebhook = async (req, res) => {
               amount: paymentIntent.amount / 100,
               currency: paymentIntent.currency,
               stripeInvoiceId: paymentIntent.invoice || paymentIntent.id,
-            }, user).catch(err => {
-              console.error('Failed to generate invoice:', err);
+            }, user).then(invoice => {
+              console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
+            }).catch(err => {
+              console.error('❌ Failed to generate/send invoice:', err);
             });
           }
         }
@@ -141,8 +143,10 @@ export const handleWebhook = async (req, res) => {
               amount: charge.amount / 100,
               currency: charge.currency,
               stripeInvoiceId: charge.invoice || charge.id,
-            }, user).catch(err => {
-              console.error('Failed to generate invoice:', err);
+            }, user).then(invoice => {
+              console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
+            }).catch(err => {
+              console.error('❌ Failed to generate/send invoice:', err);
             });
           } else if (subscription.status === 'incomplete') {
             console.log('Payment succeeded via webhook, marking subscription as active in database...');
@@ -163,8 +167,10 @@ export const handleWebhook = async (req, res) => {
               amount: charge.amount / 100,
               currency: charge.currency,
               stripeInvoiceId: charge.invoice || charge.id,
-            }, user).catch(err => {
-              console.error('Failed to generate invoice:', err);
+            }, user).then(invoice => {
+              console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
+            }).catch(err => {
+              console.error('❌ Failed to generate/send invoice:', err);
             });
           }
         }
@@ -273,8 +279,10 @@ export const handleWebhook = async (req, res) => {
           amount: invoicePaid.amount_paid / 100,
           currency: invoicePaid.currency,
           stripeInvoiceId: invoicePaid.id,
-        }, userPaid).catch(err => {
-          console.error('Failed to generate invoice:', err);
+        }, userPaid).then(invoice => {
+          console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
+        }).catch(err => {
+          console.error('❌ Failed to generate/send invoice:', err);
         });
       }
       break;
