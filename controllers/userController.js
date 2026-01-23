@@ -69,11 +69,29 @@ const authUser = asyncHandler(async (req, res) => {
     // Include subscription status in login response
     let subscriptionStatus = null;
     if (user.subscription && user.subscription.id) {
+      // Calculate isActive based on status and expiry
+      const status = user.subscription.status;
+      let isActive = status === 'active' || status === 'trialing';
+      
+      // Also check if subscription has expired based on currentPeriodEnd
+      if (user.subscription.currentPeriodEnd) {
+        const expiryDate = new Date(user.subscription.currentPeriodEnd);
+        const now = new Date();
+        if (now > expiryDate) {
+          isActive = false;
+          console.log('Subscription expired - currentPeriodEnd:', expiryDate);
+        }
+      }
+      
       subscriptionStatus = {
         id: user.subscription.id,
         status: user.subscription.status,
-        isActive: user.subscription.status === 'active' || user.subscription.status === 'trialing',
+        isActive: isActive,
+        currentPeriodEnd: user.subscription.currentPeriodEnd,
+        paymentDate: user.subscription.paymentDate,
       };
+      
+      console.log('Login - Subscription status:', subscriptionStatus);
     }
 
     res.json({

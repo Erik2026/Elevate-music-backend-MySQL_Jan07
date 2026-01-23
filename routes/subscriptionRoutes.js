@@ -10,10 +10,14 @@ import {
   getSubscriptionDetails,
   createSetupIntent,
   setAutoDebit,
+  debugSubscriptionStatus,
 } from '../controllers/subscriptionController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// GET /subscriptions/debug - Debug endpoint
+router.get('/debug', protect, debugSubscriptionStatus);
 
 // POST /subscriptions/create
 router.post('/create', protect, createSubscription);

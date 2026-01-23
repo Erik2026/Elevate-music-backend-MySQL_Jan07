@@ -347,8 +347,19 @@ export const getSubscriptionStatus = async (req, res) => {
     // Otherwise use Stripe status
     let finalStatus = databaseStatus === 'active' ? databaseStatus : stripeStatus;
     
-    // Calculate isActive based on final status
-    const isActive = (finalStatus === 'active' || finalStatus === 'trialing');
+    // Calculate isActive based on final status AND expiry date
+    let isActive = (finalStatus === 'active' || finalStatus === 'trialing');
+    
+    // Additional check: verify subscription hasn't expired
+    if (isActive && subscription.current_period_end) {
+      const expiryDate = new Date(subscription.current_period_end * 1000);
+      const now = new Date();
+      if (now > expiryDate) {
+        isActive = false;
+        finalStatus = 'expired';
+        console.log('Subscription expired - current_period_end:', expiryDate);
+      }
+    }
     
     console.log('getSubscriptionStatus - Final status:', finalStatus);
     console.log('getSubscriptionStatus - Final isActive:', isActive);
@@ -1389,6 +1400,52 @@ export const forceActivateSubscription = async (req, res) => {
     console.error('Error force-activating subscription:', error);
     return res.status(500).json({
       message: 'Failed to force-activate subscription',
+      error: error.message,
+    });
+  }
+};
+
+// GET /subscriptions/debug - Debug endpoint to check raw subscription data
+export const debugSubscriptionStatus = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    parseUserSubscription(user);
+
+    const now = new Date();
+    let isExpired = false;
+    let daysRemaining = 0;
+
+    if (user.subscription && user.subscription.currentPeriodEnd) {
+      const expiryDate = new Date(user.subscription.currentPeriodEnd);
+      const timeDiff = expiryDate.getTime() - now.getTime();
+      daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+      isExpired = now > expiryDate;
+    }
+
+    return res.json({
+      userId: user.id,
+      email: user.email,
+      subscription: user.subscription,
+      calculated: {
+        isExpired,
+        daysRemaining,
+        shouldBeActive: user.subscription?.status === 'active' && !isExpired,
+      },
+      timestamp: now.toISOString(),
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    return res.status(500).json({
+      message: 'Debug failed',
       error: error.message,
     });
   }
