@@ -27,27 +27,19 @@ class InvoiceEmailService {
   async generateInvoicePDF(invoice) {
     return new Promise((resolve, reject) => {
       try {
-        const invoicesDir = path.join(__dirname, '../invoices');
-        console.log('Invoices directory:', invoicesDir);
-        
-        if (!fs.existsSync(invoicesDir)) {
-          console.log('Creating invoices directory...');
-          fs.mkdirSync(invoicesDir, { recursive: true });
-        }
-
-        const filename = `invoice-${invoice.invoiceId}.pdf`;
-        const filepath = path.join(invoicesDir, filename);
-        console.log('PDF filepath:', filepath);
-        
         const doc = new PDFDocument({ margin: 50 });
-        const writeStream = fs.createWriteStream(filepath);
+        const chunks = [];
 
-        writeStream.on('error', (err) => {
-          console.error('Write stream error:', err);
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => {
+          const pdfBuffer = Buffer.concat(chunks);
+          console.log('PDF generated in memory, size:', pdfBuffer.length);
+          resolve(pdfBuffer);
+        });
+        doc.on('error', (err) => {
+          console.error('PDF doc error:', err);
           reject(err);
         });
-
-        doc.pipe(writeStream);
 
         // Header
         doc.fontSize(25).text('INVOICE', { align: 'center' });
@@ -86,15 +78,6 @@ class InvoiceEmailService {
         doc.text(`$${invoice.amount} ${invoice.currency.toUpperCase()}`, 350, doc.y);
 
         doc.end();
-
-        doc.on('finish', () => {
-          console.log('PDF generation finished');
-          resolve(filepath);
-        });
-        doc.on('error', (err) => {
-          console.error('PDF doc error:', err);
-          reject(err);
-        });
       } catch (error) {
         console.error('PDF generation error:', error);
         reject(error);
@@ -113,11 +96,8 @@ class InvoiceEmailService {
       console.log('Invoice details:', { invoiceId: invoice.invoiceId, amount: invoice.amount });
       
       console.log('Generating PDF...');
-      const pdfPath = await this.generateInvoicePDF(invoice);
-      console.log('PDF generated at:', pdfPath);
-      
-      const pdfBuffer = fs.readFileSync(pdfPath);
-      console.log('PDF buffer size:', pdfBuffer.length);
+      const pdfBuffer = await this.generateInvoicePDF(invoice);
+      console.log('PDF buffer ready, size:', pdfBuffer.length);
 
       console.log('Sending email via Resend...');
       const { data, error } = await this.resend.emails.send({
