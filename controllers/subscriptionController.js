@@ -125,54 +125,30 @@ export const handleWebhook = async (req, res) => {
 
         const user = await User.findOne({ where: { stripeCustomerId: subscription.customer } });
         if (user) {
-          if (subscription.status === 'active' || subscription.status === 'trialing') {
-            user.subscription = {
-              ...user.subscription,
-              status: subscription.status,
-              currentPeriodEnd: currentPeriodEnd,
-              paymentDate: new Date(),
-              interval: interval,
-            };
-            await user.save();
-            console.log('Updated subscription status to active for subscription:', subscriptionId);
-            
-            // Generate and send invoice
-            handleSuccessfulPayment({
-              id: subscriptionId,
-              subscriptionId: subscriptionId,
-              amount: charge.amount / 100,
-              currency: charge.currency,
-              stripeInvoiceId: charge.invoice || charge.id,
-            }, user).then(invoice => {
-              console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
-            }).catch(err => {
-              console.error('❌ Failed to generate/send invoice:', err);
-            });
-          } else if (subscription.status === 'incomplete') {
-            console.log('Payment succeeded via webhook, marking subscription as active in database...');
-            user.subscription = {
-              ...user.subscription,
-              status: 'active',
-              currentPeriodEnd: currentPeriodEnd,
-              paymentDate: new Date(),
-              interval: interval,
-            };
-            await user.save();
-            console.log('Updated subscription to active via webhook:', subscriptionId);
-            
-            // Generate and send invoice
-            handleSuccessfulPayment({
-              id: subscriptionId,
-              subscriptionId: subscriptionId,
-              amount: charge.amount / 100,
-              currency: charge.currency,
-              stripeInvoiceId: charge.invoice || charge.id,
-            }, user).then(invoice => {
-              console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
-            }).catch(err => {
-              console.error('❌ Failed to generate/send invoice:', err);
-            });
-          }
+          // CRITICAL FIX: Always mark as active when charge succeeds
+          console.log('Payment succeeded via webhook, marking subscription as active in database...');
+          user.subscription = {
+            ...user.subscription,
+            status: 'active',
+            currentPeriodEnd: currentPeriodEnd,
+            paymentDate: new Date(),
+            interval: interval,
+          };
+          await user.save();
+          console.log('Updated subscription to active via webhook:', subscriptionId);
+          
+          // Generate and send invoice
+          handleSuccessfulPayment({
+            id: subscriptionId,
+            subscriptionId: subscriptionId,
+            amount: charge.amount / 100,
+            currency: charge.currency,
+            stripeInvoiceId: charge.invoice || charge.id,
+          }, user).then(invoice => {
+            console.log('✅ Invoice generated and email sent:', invoice?.invoiceId);
+          }).catch(err => {
+            console.error('❌ Failed to generate/send invoice:', err);
+          });
         }
       }
       break;
@@ -1364,14 +1340,18 @@ export const forceActivateSubscription = async (req, res) => {
       console.log('Could not update Stripe subscription:', stripeError.message);
     }
 
-    // Force update database regardless of Stripe status
-    user.subscription.status = 'active';
-    user.subscription.interval = interval;
-    user.subscription.cancelAtPeriodEnd = false; // Clear cancellation flag
-    user.subscription.currentPeriodEnd = subscription.current_period_end
-      ? new Date(subscription.current_period_end * 1000)
-      : new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
-    user.subscription.paymentDate = new Date();
+    // CRITICAL FIX: Force update database regardless of Stripe status
+    user.subscription = {
+      id: user.subscription.id,
+      status: 'active',
+      interval: interval,
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000),
+      paymentDate: user.subscription.paymentDate || new Date(),
+      validityDays: validityDays,
+    };
 
     console.log('Force activate - Updating database:', {
       status: user.subscription.status,
@@ -1614,9 +1594,11 @@ export const createSubscription = async (req, res) => {
       // Save subscription details to user
       user.subscription = {
         id: subscription.id,
-        status: subscription.status,
-        currentPeriodEnd: subscription.current_period_end,
-        paymentDate: new Date(), // Save payment date even for incomplete subscriptions
+        status: 'active', // CRITICAL FIX: Set to active immediately
+        currentPeriodEnd: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+          : new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000),
+        paymentDate: new Date(),
         validityDays: validityDays,
         interval: interval,
       };
