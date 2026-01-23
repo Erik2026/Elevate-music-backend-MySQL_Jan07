@@ -94,8 +94,12 @@ class InvoiceEmailService {
       console.log('Attempting to send invoice email to:', email);
       console.log('Invoice details:', { invoiceId: invoice.invoiceId, amount: invoice.amount });
       
+      console.log('Generating PDF...');
       const pdfPath = await this.generateInvoicePDF(invoice);
+      console.log('PDF generated at:', pdfPath);
+      
       const pdfBuffer = fs.readFileSync(pdfPath);
+      console.log('PDF buffer size:', pdfBuffer.length);
 
       console.log('Sending email via Resend...');
       const { data, error } = await this.resend.emails.send({
