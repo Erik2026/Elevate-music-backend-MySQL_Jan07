@@ -205,7 +205,12 @@ export const handleWebhook = async (req, res) => {
       const userUpdated = await User.findOne({ where: { stripeCustomerId: subscriptionUpdated.customer } });
       if (userUpdated) {
         // Treat incomplete_expired as canceled
-        const finalStatus = subscriptionUpdated.status === 'incomplete_expired' ? 'canceled' : subscriptionUpdated.status;
+        let finalStatus = subscriptionUpdated.status === 'incomplete_expired' ? 'canceled' : subscriptionUpdated.status;
+        
+        // Keep status active if cancel_at_period_end is set (don't change to incomplete)
+        if (subscriptionUpdated.cancel_at_period_end && (finalStatus === 'incomplete' || finalStatus === 'active' || finalStatus === 'trialing')) {
+          finalStatus = userUpdated.subscription?.status === 'active' ? 'active' : finalStatus;
+        }
         
         userUpdated.subscription = {
           ...userUpdated.subscription,
@@ -1126,10 +1131,10 @@ export const cancelSubscription = async (req, res) => {
       currentPeriodEnd: subscription.current_period_end,
     });
 
-    // Update user subscription status
+    // Update user subscription - keep status active if canceling at period end
     user.subscription = {
       ...user.subscription,
-      status: subscription.status,
+      status: subscription.status === 'active' || subscription.status === 'trialing' ? subscription.status : user.subscription.status,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     };
     await user.save();
