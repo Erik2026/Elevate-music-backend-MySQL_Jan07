@@ -204,18 +204,24 @@ export const handleWebhook = async (req, res) => {
 
       const userUpdated = await User.findOne({ where: { stripeCustomerId: subscriptionUpdated.customer } });
       if (userUpdated) {
+        // Treat incomplete_expired as canceled
+        const finalStatus = subscriptionUpdated.status === 'incomplete_expired' ? 'canceled' : subscriptionUpdated.status;
+        
         userUpdated.subscription = {
           ...userUpdated.subscription,
-          status: subscriptionUpdated.status,
-          currentPeriodEnd: currentPeriodEndUpdated,
+          status: finalStatus,
+          currentPeriodEnd: finalStatus === 'canceled' ? null : currentPeriodEndUpdated,
           paymentDate: new Date(),
           interval: subscriptionUpdated.items.data[0]?.plan?.interval || 'month',
-          cancelAtPeriodEnd: subscriptionUpdated.cancel_at_period_end, // Track cancellation
+          cancelAtPeriodEnd: subscriptionUpdated.cancel_at_period_end,
         };
         await userUpdated.save();
         
         if (subscriptionUpdated.cancel_at_period_end) {
           console.log('Subscription marked for cancellation at period end:', subscriptionUpdated.id);
+        }
+        if (subscriptionUpdated.status === 'incomplete_expired') {
+          console.log('Subscription incomplete_expired treated as canceled:', subscriptionUpdated.id);
         }
       }
       break;
@@ -322,6 +328,12 @@ export const getSubscriptionStatus = async (req, res) => {
     // Use database status if it's active (webhook already processed payment)
     // Otherwise use Stripe status
     let finalStatus = databaseStatus === 'active' ? databaseStatus : stripeStatus;
+    
+    // Treat incomplete_expired as canceled
+    if (stripeStatus === 'incomplete_expired') {
+      finalStatus = 'canceled';
+      console.log('getSubscriptionStatus - Treating incomplete_expired as canceled');
+    }
     
     // Calculate isActive based on final status AND expiry date
     let isActive = (finalStatus === 'active' || finalStatus === 'trialing');

@@ -70,26 +70,36 @@ const authUser = asyncHandler(async (req, res) => {
     let subscriptionStatus = null;
     if (user.subscription && user.subscription.id) {
       // Calculate isActive based on status and expiry
-      const status = user.subscription.status;
-      let isActive = status === 'active' || status === 'trialing';
-      
-      // Also check if subscription has expired based on currentPeriodEnd
-      if (user.subscription.currentPeriodEnd) {
-        const expiryDate = new Date(user.subscription.currentPeriodEnd);
-        const now = new Date();
-        if (now > expiryDate) {
-          isActive = false;
-          console.log('Subscription expired - currentPeriodEnd:', expiryDate);
-        }
+      let status = user.subscription.status;
+      // Treat incomplete_expired as canceled
+      if (status === 'incomplete_expired') {
+        status = 'canceled';
       }
       
-      subscriptionStatus = {
-        id: user.subscription.id,
-        status: user.subscription.status,
-        isActive: isActive,
-        currentPeriodEnd: user.subscription.currentPeriodEnd,
-        paymentDate: user.subscription.paymentDate,
-      };
+      // Don't return subscription info if canceled - user had subscription that ended
+      if (status === 'canceled') {
+        subscriptionStatus = null;
+      } else {
+        let isActive = status === 'active' || status === 'trialing';
+        
+        // Also check if subscription has expired based on currentPeriodEnd
+        if (user.subscription.currentPeriodEnd) {
+          const expiryDate = new Date(user.subscription.currentPeriodEnd);
+          const now = new Date();
+          if (now > expiryDate) {
+            isActive = false;
+            console.log('Subscription expired - currentPeriodEnd:', expiryDate);
+          }
+        }
+        
+        subscriptionStatus = {
+          id: user.subscription.id,
+          status: status,
+          isActive: isActive,
+          currentPeriodEnd: user.subscription.currentPeriodEnd,
+          paymentDate: user.subscription.paymentDate,
+        };
+      }
       
       console.log('Login - Subscription status:', subscriptionStatus);
     }
